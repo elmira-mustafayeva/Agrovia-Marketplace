@@ -1,7 +1,26 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const dns = require('dns');
 const dotenv = require('dotenv');
+
+// DNS fix (SRV problem üçün)
+
+dns.setServers(["1.1.1.1", "8.8.8.8"]);
+
+// Express app yarat
+const app = express();
+
+// Middleware-lər
+app.use(cors({
+  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  credentials: true
+}));
+
+
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
 
 // Route fayllarını import et
 const authRoutes = require('./routes/auth');
@@ -21,21 +40,7 @@ const errorHandler = require('./middleware/errorHandler');
 // Environment variables yüklə
 dotenv.config();
 
-// Express app yarat
-const app = express();
 
-// Middleware-lər
-app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-  credentials: true
-}));
-
-// DNS fix (SRV problem üçün)
-
-await setServers(["1.1.1.1", "8.8.8.8"]);
-
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
 // Static fayllar (uploads qovluğu varsa)
 app.use('/uploads', express.static('uploads'));
@@ -76,9 +81,7 @@ app.use(errorHandler);
 // MongoDB bağlantısı
 const connectDB = async () => {
   try {
-    const conn = await mongoose.connect(process.env.MONGODB_URI, {
-      // MongoDB 6+ üçün bu parametrlər default olaraq təyin olunub
-    });
+    const conn = await mongoose.connect(process.env.MONGODB_URI);
     console.log(`MongoDB Bağlantısı Uğurlu: ${conn.connection.host}`);
   } catch (error) {
     console.error(`MongoDB Bağlantı Xətası: ${error.message}`);
