@@ -1,19 +1,21 @@
-const mongoose = require('mongoose');
+import mongoose from "mongoose";
 
+// Order Item
 const orderItemSchema = new mongoose.Schema({
   product: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Product',
+    ref: "Product",
     required: true
   },
   seller: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
+    ref: "User",
     required: true
   },
   name: {
     type: String,
-    required: true
+    required: true,
+    trim: true
   },
   quantity: {
     type: Number,
@@ -22,7 +24,8 @@ const orderItemSchema = new mongoose.Schema({
   },
   price: {
     type: Number,
-    required: true
+    required: true,
+    min: 0
   },
   unit: {
     type: String,
@@ -30,131 +33,182 @@ const orderItemSchema = new mongoose.Schema({
   },
   totalPrice: {
     type: Number,
-    required: true
+    required: true,
+    min: 0
   }
 });
 
+// Order Schema
 const orderSchema = new mongoose.Schema(
   {
-    // Sifariş nömrəsi (unikal)
+    // Unique order number
     orderNumber: {
       type: String,
-      unique: true
+      unique: true,
+      index: true
     },
-    
-    // Alıcı
+
+    // Buyer
     buyer: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
-      required: true
+      ref: "User",
+      required: true,
+      index: true
     },
-    
-    // Məhsullar
-    items: [orderItemSchema],
-    
-    // Ümumi məlumatlar
+
+    // Items
+    items: {
+      type: [orderItemSchema],
+      validate: [(val) => val.length > 0, "Order must have at least 1 item"]
+    },
+
+    // Pricing
     subtotal: {
       type: Number,
-      required: true
+      required: true,
+      min: 0
     },
     deliveryFee: {
       type: Number,
-      default: 0
+      default: 0,
+      min: 0
     },
     totalAmount: {
       type: Number,
-      required: true
+      required: true,
+      min: 0
     },
-    
-    // Çatdırılma ünvanı
+
+    // Delivery Address
     deliveryAddress: {
       region: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'Region'
+        ref: "Region"
       },
-      city: String,
-      street: String,
-      phone: String,
-      recipientName: String
+      city: { type: String, trim: true },
+      street: { type: String, trim: true },
+
+      coordinates: {
+        lat: Number,
+        lng: Number
+      },
+
+      phone: { type: String, trim: true },
+      recipientName: { type: String, trim: true }
     },
-    
-    // Ödəniş məlumatları
+
+    // Payment
     payment: {
       method: {
         type: String,
-        enum: ['cash', 'card', 'online'],
+        enum: ["cash", "card", "online"],
         required: true
-        // cash - nağd, card - kart, online - onlayn ödəniş
       },
       status: {
         type: String,
-        enum: ['pending', 'completed', 'failed', 'refunded'],
-        default: 'pending'
+        enum: ["pending", "completed", "failed", "refunded"],
+        default: "pending",
+        index: true
       },
       transactionId: String,
       paidAt: Date
     },
-    
-    // Sifariş statusu
+
+    // Order Status (delivery-dən ayrı!)
     status: {
       type: String,
       enum: [
-        'pending',      // Gözləmədə
-        'confirmed',    // Təsdiqləndi
-        'preparing',    // Hazırlanır
-        'ready',        // Hazır (kuryer gözləyir)
-        'shipped',      // Yoldadır
-        'delivered',    // Çatdırıldı
-        'cancelled',    // Ləğv edildi
-        'returned'      // Qaytarıldı
+        "pending",
+        "confirmed",
+        "preparing",
+        "ready",
+        "delivered",
+        "cancelled",
+        "returned"
       ],
-      default: 'pending'
+      default: "pending",
+      index: true
     },
-    
-    // Kuryer məlumatları
+
+    // Courier
     courier: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'User',
+      ref: "User",
       default: null
     },
+
     assignedAt: Date,
     pickedUpAt: Date,
     deliveredAt: Date,
-    
-    // Qeydlər
+
+    // Notes
     notes: {
       type: String,
-      maxlength: [500, 'Qeyd maksimum 500 simvol ola bilər']
+      maxlength: 500
     },
-    
-    // Sifariş tarixi
+
+    // Estimated delivery
     estimatedDeliveryDate: Date,
-    
-    // İzləmə
-    trackingHistory: [{
-      status: String,
-      description: String,
-      timestamp: {
-        type: Date,
-        default: Date.now
+
+    // Tracking history
+    trackingHistory: [
+      {
+        status: String,
+        description: String,
+
+        location: {
+          lat: Number,
+          lng: Number
+        },
+
+        timestamp: {
+          type: Date,
+          default: Date.now
+        }
       }
-    }]
+    ]
   },
   {
     timestamps: true
   }
 );
 
-// Sifariş nömrəsi yarat (yadda saxlamazdan əvvəl)
-orderSchema.pre('save', async function(next) {
+---
+
+# AUTO LOGIC
+
+// Order number generator
+orderSchema.pre("save", function (next) {
   if (!this.orderNumber) {
-    const date = new Date();
-    const prefix = 'AGR';
-    const timestamp = date.getTime().toString(36).toUpperCase();
-    const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+    const prefix = "AGR";
+    const timestamp = Date.now().toString(36).toUpperCase();
+    const random = Math.floor(Math.random() * 1000)
+      .toString()
+      .padStart(3, "0");
+
     this.orderNumber = `${prefix}-${timestamp}-${random}`;
   }
   next();
 });
 
-module.exports = mongoose.model('Order', orderSchema);
+// Auto price calculation
+orderSchema.pre("save", function (next) {
+  this.subtotal = this.items.reduce(
+    (acc, item) => acc + item.totalPrice,
+    0
+  );
+
+  this.totalAmount = this.subtotal + this.deliveryFee;
+
+  next();
+});
+
+
+// # INDEXES (performance üçün)
+
+orderSchema.index({ buyer: 1 });
+orderSchema.index({ status: 1 });
+orderSchema.index({ createdAt: -1 });
+
+
+export default mongoose.model("Order", orderSchema);
