@@ -4,8 +4,10 @@ const cors = require('cors');
 const dns = require('dns');
 const dotenv = require('dotenv');
 
-// DNS fix (SRV problem üçün)
+// ENV 
+dotenv.config();
 
+// DNS fix (SRV)
 dns.setServers(["1.1.1.1", "8.8.8.8"]);
 
 // Express app yarat
@@ -17,12 +19,13 @@ app.use(cors({
   credentials: true
 }));
 
-
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Static fayllar (uploads qovluğu varsa)
+app.use('/uploads', express.static('uploads'));
 
-// Route fayllarını import et
+// Route faylları
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/users');
 const categoryRoutes = require('./routes/categories');
@@ -34,18 +37,7 @@ const reviewRoutes = require('./routes/reviews');
 const regionRoutes = require('./routes/regions');
 const deliveryRoutes = require('./routes/delivery');
 
-// Error handler
-const errorHandler = require('./middleware/errorHandler');
-
-// Environment variables yüklə
-dotenv.config();
-
-
-
-// Static fayllar (uploads qovluğu varsa)
-app.use('/uploads', express.static('uploads'));
-
-// Health check endpoint
+// Health check
 app.get('/', (req, res) => {
   res.json({
     success: true,
@@ -65,9 +57,9 @@ app.use('/api/wishlist', wishlistRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/regions', regionRoutes);
-app.use('/api/delivery', deliveryRoutes);
+app.use('/api/delivery', deliveryRoutes); // ✅ SƏNİN SORUŞDUĞUN YER
 
-// 404 - Route tapılmadı
+// 404 handler
 app.use((req, res) => {
   res.status(404).json({
     success: false,
@@ -75,7 +67,8 @@ app.use((req, res) => {
   });
 });
 
-// Error handler (sonuncu middleware olmalıdır)
+// Error handler (ən sonda olmalıdır)
+const errorHandler = require('./middleware/errorHandler');
 app.use(errorHandler);
 
 // MongoDB bağlantısı
@@ -89,12 +82,12 @@ const connectDB = async () => {
   }
 };
 
-// Serveri başlat
+// Server start
 const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
   await connectDB();
-  
+
   app.listen(PORT, () => {
     console.log(`Server ${PORT} portunda işləyir`);
     console.log(`API URL: http://localhost:${PORT}`);
@@ -104,7 +97,7 @@ const startServer = async () => {
 
 startServer();
 
-// Təhlükəsiz bağlantı (process dayandırılanda)
+// Global error catch
 process.on('unhandledRejection', (err) => {
   console.error('Unhandled Rejection:', err.message);
   process.exit(1);
