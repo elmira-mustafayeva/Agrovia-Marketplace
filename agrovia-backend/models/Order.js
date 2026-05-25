@@ -173,9 +173,7 @@ const orderSchema = new mongoose.Schema(
   }
 );
 
----
-
-# AUTO LOGIC
+// # AUTO LOGIC
 
 // Order number generator
 orderSchema.pre("save", function (next) {
