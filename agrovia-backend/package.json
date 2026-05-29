@@ -1,7 +1,7 @@
 {
   "name": "agrovia-backend",
   "version": "1.0.0",
-  "description": "Agrovia - Azərbaycan kənd təsərrüfatı marketplace",
+  "description": "Agrovia - Azerbaijan Agricultural Marketplace",
   "main": "index.js",
   "scripts": {
     "start": "node server.js",
@@ -13,7 +13,7 @@
     "azerbaijan"
   ],
   "author": "Elmira Mustafayeva",
-  "license": "ISC",
+  "license": "MIT",
   "type": "commonjs",
   "dependencies": {
     "@googlemaps/google-maps-services-js": "^3.4.2",
