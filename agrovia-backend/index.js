@@ -3,6 +3,8 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const dns = require('dns');
 const dotenv = require('dotenv');
+const morgan = require('morgan');
+const helmet = require('helmet');
 
 // ENV 
 dotenv.config();
@@ -13,6 +15,10 @@ dns.setServers(["1.1.1.1", "8.8.8.8"]);
 // Express app yarat
 const app = express();
 
+// Security middleware
+app.use(helmet());
+app.use(morgan('dev'));
+
 // Middleware-lər
 app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:3000',
@@ -22,7 +28,7 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Static fayllar (uploads qovluğu varsa)
+// Static fayllar
 app.use('/uploads', express.static('uploads'));
 
 // Route faylları
@@ -36,6 +42,9 @@ const orderRoutes = require('./routes/orders');
 const reviewRoutes = require('./routes/reviews');
 const regionRoutes = require('./routes/regions');
 const deliveryRoutes = require('./routes/delivery');
+const sellerRoutes = require('./routes/seller');
+const courierRoutes = require('./routes/courier');
+const adminRoutes = require('./routes/admin');
 
 // Health check
 app.get('/', (req, res) => {
@@ -43,6 +52,14 @@ app.get('/', (req, res) => {
     success: true,
     message: 'Agrovia API işləyir!',
     version: '1.0.0',
+    timestamp: new Date().toISOString()
+  });
+});
+
+app.get('/api/health', (req, res) => {
+  res.json({
+    success: true,
+    message: 'API sağlamlıq yoxlanışı OK',
     timestamp: new Date().toISOString()
   });
 });
@@ -57,7 +74,10 @@ app.use('/api/wishlist', wishlistRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/regions', regionRoutes);
-app.use('/api/delivery', deliveryRoutes); // ✅ SƏNİN SORUŞDUĞUN YER
+app.use('/api/delivery', deliveryRoutes);
+app.use('/api/seller', sellerRoutes);
+app.use('/api/courier', courierRoutes);
+app.use('/api/admin', adminRoutes);
 
 // 404 handler
 app.use((req, res) => {
