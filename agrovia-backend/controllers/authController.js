@@ -226,3 +226,23 @@ exports.changePassword = async (req, res) => {
     });
   }
 };
+
+// Hesabı deaktiv et
+exports.deactivateAccount = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    user.isActive = false;
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Hesabınız deaktiv edildi'
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Hesab deaktiv edilərkən xəta',
+      error: error.message
+    });
+  }
+};
