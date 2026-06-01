@@ -1,38 +1,58 @@
-export const calculateDeliveryPrice = ({
-  distanceKm,
-  durationMinutes,
+const calculateDeliveryPrice = ({
+  distanceKm = 0,
+  durationMinutes = 0,
   weather = "normal",
   isPeak = false,
-  demand = "normal"
+  demand = "normal",
 }) => {
+  if (distanceKm <= 0 || durationMinutes <= 0) {
+    throw new Error("Invalid distance or duration");
+  }
 
-  const baseFee = 1.2;
-  const perKmRate = 0.5;
-  const perMinuteRate = 0.02;
+  const CONFIG = {
+    baseFee: 1.2,
+    perKmRate: 0.5,
+    perMinuteRate: 0.02,
+    peakMultiplier: 1.3,
+    longDistanceThreshold: 10,
+    longDistanceFee: 2,
+    minPrice: 2,
+  };
 
   const weatherMap = {
     normal: 1,
     rain: 1.2,
-    snow: 1.5
+    snow: 1.5,
   };
 
   const demandMap = {
     normal: 1,
     busy: 1.2,
-    very_busy: 1.5
+    very_busy: 1.5,
   };
 
-  const distanceFee = distanceKm * perKmRate;
-  const timeFee = durationMinutes * perMinuteRate;
+  const weatherMultiplier = weatherMap[weather] || 1;
+  const demandMultiplier = demandMap[demand] || 1;
+  const peakMultiplier = isPeak ? CONFIG.peakMultiplier : 1;
+
+  const distanceFee = distanceKm * CONFIG.perKmRate;
+  const timeFee = durationMinutes * CONFIG.perMinuteRate;
 
   let price =
-    (baseFee + distanceFee + timeFee) *
-    weatherMap[weather] *
-    (isPeak ? 1.3 : 1) *
-    demandMap[demand];
+    (CONFIG.baseFee + distanceFee + timeFee) *
+    weatherMultiplier *
+    demandMultiplier *
+    peakMultiplier;
 
-  if (distanceKm > 10) price += 2;
-  if (price < 2) price = 2;
+  // long distance surcharge
+  if (distanceKm > CONFIG.longDistanceThreshold) {
+    price += CONFIG.longDistanceFee;
+  }
+
+  // minimum price
+  price = Math.max(price, CONFIG.minPrice);
 
   return Number(price.toFixed(2));
 };
+
+module.exports = { calculateDeliveryPrice };
