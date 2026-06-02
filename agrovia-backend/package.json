@@ -4,8 +4,8 @@
   "description": "Agrovia - Azerbaijan Agricultural Marketplace",
   "main": "index.js",
   "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js"
+    "start": "node index.js",
+    "dev": "nodemon index.js"
   },
   "keywords": [
     "agriculture",

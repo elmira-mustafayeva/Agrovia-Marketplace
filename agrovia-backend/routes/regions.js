@@ -1,18 +1,9 @@
 const express = require('express');
 const router = express.Router();
-const { getProducts, getProduct, createProduct, updateProduct, deleteProduct, deleteProductImage, getMyProducts } = require('../controllers/productController');
-const { protect, authorize } = require('../middleware/auth');
-const { uploadImages, uploadVideo } = require('../middleware/upload');
+const { getRegions, getRegion } = require('../controllers/regionController');
 
-// Public routes
-router.get('/', getProducts);
-router.get('/:id', getProduct);
-
-// Protected seller routes
-router.post('/', protect, authorize('seller', 'admin'), uploadImages, uploadVideo, createProduct);
-router.get('/my/products', protect, authorize('seller'), getMyProducts);
-router.put('/:id', protect, authorize('seller', 'admin'), uploadImages, uploadVideo, updateProduct);
-router.delete('/:id/image/:imageId', protect, authorize('seller', 'admin'), deleteProductImage);
-router.delete('/:id', protect, authorize('seller', 'admin'), deleteProduct);
+// Public routes for regions
+router.get('/', getRegions);
+router.get('/:id', getRegion);
 
 module.exports = router;

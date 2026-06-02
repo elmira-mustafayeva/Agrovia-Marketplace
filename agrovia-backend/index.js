@@ -29,7 +29,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Static fayllar
-app.use('/uploads', express.static('uploads'));
+// Note: uploads served statically removed because Cloudinary is used for media storage
 
 // Route faylları
 const authRoutes = require('./routes/auth');
@@ -91,16 +91,8 @@ app.use((req, res) => {
 const errorHandler = require('./middleware/errorHandler');
 app.use(errorHandler);
 
-// MongoDB bağlantısı
-const connectDB = async () => {
-  try {
-    const conn = await mongoose.connect(process.env.MONGODB_URI);
-    console.log(`MongoDB Bağlantısı Uğurlu: ${conn.connection.host}`);
-  } catch (error) {
-    console.error(`MongoDB Bağlantı Xətası: ${error.message}`);
-    process.exit(1);
-  }
-};
+// Use centralized DB connection helper
+const connectDB = require('./config/database');
 
 // Server start
 const PORT = process.env.PORT || 5000;

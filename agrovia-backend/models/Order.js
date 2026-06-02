@@ -1,4 +1,4 @@
-import mongoose from "mongoose";
+const mongoose = require("mongoose");
 
 // Order Item
 const orderItemSchema = new mongoose.Schema({
@@ -114,7 +114,7 @@ const orderSchema = new mongoose.Schema(
       paidAt: Date
     },
 
-    // Order Status (delivery-dən ayrı!)
+    // Order Status
     status: {
       type: String,
       enum: [
@@ -122,6 +122,7 @@ const orderSchema = new mongoose.Schema(
         "confirmed",
         "preparing",
         "ready",
+        "out_for_delivery",
         "delivered",
         "cancelled",
         "returned"
@@ -201,12 +202,7 @@ orderSchema.pre("save", function (next) {
   next();
 });
 
-
-// # INDEXES (performance üçün)
-
-orderSchema.index({ buyer: 1 });
-orderSchema.index({ status: 1 });
+// # INDEXES
 orderSchema.index({ createdAt: -1 });
 
-
-export default mongoose.model("Order", orderSchema);
+module.exports = mongoose.model("Order", orderSchema);
