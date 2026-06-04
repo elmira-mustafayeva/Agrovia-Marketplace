@@ -5,12 +5,14 @@ const dns = require('dns');
 const dotenv = require('dotenv');
 const morgan = require('morgan');
 const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+const mongoSanitize = require('express-mongo-sanitize');
 
-// ENV 
+// ENV
 dotenv.config();
 
 // DNS fix (SRV)
-dns.setServers(["1.1.1.1", "8.8.8.8"]);
+dns.setServers(['1.1.1.1', '8.8.8.8']);
 
 // Express app yarat
 const app = express();
@@ -18,6 +20,23 @@ const app = express();
 // Security middleware
 app.use(helmet());
 app.use(morgan('dev'));
+
+// MongoDB NoSQL Injection protection
+app.use(mongoSanitize());
+
+// Global API rate limit
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 dəqiqə
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: 'Çox sayda sorğu göndərildi. Bir az sonra yenidən cəhd edin.'
+  }
+});
+
+app.use('/api', apiLimiter);
 
 // Middleware-lər
 app.use(cors({
@@ -27,9 +46,6 @@ app.use(cors({
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
-// Static fayllar
-// Note: uploads served statically removed because Cloudinary is used for media storage
 
 // Route faylları
 const authRoutes = require('./routes/auth');
