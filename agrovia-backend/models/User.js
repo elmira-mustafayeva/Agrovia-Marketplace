@@ -148,16 +148,14 @@ userSchema.virtual('fullName').get(function() {
 });
 
 // Şifrəni hash et (yadda saxlamazdan əvvəl)
-userSchema.pre('save', async function(next) {
+userSchema.pre('save', async function() {
   // Şifrə dəyişməyibsə, hash etmə
   if (!this.isModified('password')) {
-    next();
     return;
   }
-  
+
   // Şifrəni hash et (10 round salt)
   this.password = await bcrypt.hash(this.password, 10);
-  next();
 });
 
 // Şifrəni yoxlama metodu

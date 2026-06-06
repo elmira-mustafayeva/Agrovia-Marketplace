@@ -6,7 +6,7 @@ const calculateDeliveryPrice = ({
   demand = "normal",
 }) => {
   if (distanceKm <= 0 || durationMinutes <= 0) {
-    throw new Error("Invalid distance or duration");
+    throw new Error("Məsafə və ya vaxt məlumatı düzgün əldə edilə bilmədi.");
   }
 
   const CONFIG = {

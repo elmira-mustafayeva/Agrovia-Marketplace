@@ -6,7 +6,6 @@ const dotenv = require('dotenv');
 const morgan = require('morgan');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
-const mongoSanitize = require('express-mongo-sanitize');
 
 // ENV
 dotenv.config();
@@ -20,9 +19,6 @@ const app = express();
 // Security middleware
 app.use(helmet());
 app.use(morgan('dev'));
-
-// MongoDB NoSQL Injection protection
-app.use(mongoSanitize());
 
 // Global API rate limit
 const apiLimiter = rateLimit({
