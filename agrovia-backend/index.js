@@ -20,9 +20,19 @@ const app = express();
 app.use(helmet());
 app.use(morgan('dev'));
 
-// Global API rate limit
+// ✅ 1. CORS (əvvəl)
+app.use(cors({
+  origin: process.env.FRONTEND_URL || 'http://localhost:5175',
+  credentials: true
+}));
+
+// ✅ 2. BODY PARSERS (rate limit-dən ƏVVƏL!)
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// ✅ 3. RATE LIMIT (body-dan SONRA!)
 const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 dəqiqə
+  windowMs: 15 * 60 * 1000,
   max: 100,
   standardHeaders: true,
   legacyHeaders: false,
@@ -36,9 +46,13 @@ app.use('/api', apiLimiter);
 
 // Middleware-lər
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
-  credentials: true
+  origin: process.env.FRONTEND_URL || 'http://localhost:5175',
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
+
+app.options(/.*/, cors());
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));

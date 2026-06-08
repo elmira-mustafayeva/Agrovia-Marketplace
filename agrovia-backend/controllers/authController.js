@@ -11,6 +11,7 @@ exports.register = async (req, res) => {
       password,
       role,
       address,
+      region,
       sellerInfo,
       courierInfo
     } = req.body;
@@ -28,6 +29,17 @@ exports.register = async (req, res) => {
     }
 
     // Yeni istifadəçi yarat
+    const normalizedAddress = {
+      ...(address || {})
+    };
+
+    const selectedRegion = region || address?.region;
+    if (selectedRegion) {
+      normalizedAddress.region = selectedRegion;
+    }
+
+    const requiresAdminApproval = role === 'seller' || role === 'courier';
+
     const userData = {
       firstName,
       lastName,
@@ -35,7 +47,8 @@ exports.register = async (req, res) => {
       phone,
       password,
       role,
-      address
+      address: normalizedAddress,
+      isActive: !requiresAdminApproval
     };
 
     // Satici məlumatları
@@ -50,6 +63,23 @@ exports.register = async (req, res) => {
 
     const user = await User.create(userData);
 
+    if (requiresAdminApproval) {
+      return res.status(201).json({
+        success: true,
+        pendingApproval: true,
+        message: 'Qeydiyyat qəbul edildi. Admin təsdiqindən sonra giriş edə biləcəksiniz.',
+        user: {
+          id: user._id,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          email: user.email,
+          phone: user.phone,
+          role: user.role,
+          isActive: user.isActive
+        }
+      });
+    }
+
     // Token yarat
     const token = user.getJWTToken();
 
@@ -63,7 +93,8 @@ exports.register = async (req, res) => {
         lastName: user.lastName,
         email: user.email,
         phone: user.phone,
-        role: user.role
+        role: user.role,
+        isActive: user.isActive
       }
     });
   } catch (error) {
@@ -110,9 +141,13 @@ exports.login = async (req, res) => {
 
     // İstifadəçi aktiv deyilsə
     if (!user.isActive) {
+      const pendingApprovalMessage = (user.role === 'seller' || user.role === 'courier')
+        ? 'Hesabınız admin təsdiqini gözləyir'
+        : 'Hesabınız deaktivdir';
+
       return res.status(401).json({
         success: false,
-        message: 'Hesabınız deaktivdir'
+        message: pendingApprovalMessage
       });
     }
 

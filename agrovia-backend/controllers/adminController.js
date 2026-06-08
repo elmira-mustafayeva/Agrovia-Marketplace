@@ -16,7 +16,10 @@ exports.getDashboard = async (req, res) => {
         couriers: await User.countDocuments({ role: 'courier' })
       },
       sellers: {
-        pending: await User.countDocuments({ role: 'seller', 'sellerInfo.isVerified': false })
+        pending: await User.countDocuments({ role: 'seller', isActive: false })
+      },
+      couriers: {
+        pending: await User.countDocuments({ role: 'courier', isActive: false })
       },
       products: {
         total: await Product.countDocuments(),
@@ -129,7 +132,7 @@ exports.verifySeller = async (req, res) => {
   try {
     const user = await User.findOneAndUpdate(
       { _id: req.params.id, role: 'seller' },
-      { 'sellerInfo.isVerified': true },
+      { 'sellerInfo.isVerified': true, isActive: true },
       { new: true }
     );
 
@@ -149,6 +152,49 @@ exports.verifySeller = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Təsdiqlənərkən xəta',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Approve seller or courier account
+// @route   PUT /api/admin/users/:id/approve
+// @access  Private (Admin)
+exports.approveUser = async (req, res) => {
+  try {
+    const user = await User.findById(req.params.id);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'İstifadəçi tapılmadı'
+      });
+    }
+
+    if (!['seller', 'courier'].includes(user.role)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Yalnız satici və kuryer təsdiqlənə bilər'
+      });
+    }
+
+    user.isActive = true;
+    if (user.role === 'seller') {
+      user.sellerInfo = user.sellerInfo || {};
+      user.sellerInfo.isVerified = true;
+    }
+
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: `${user.role === 'seller' ? 'Satici' : 'Kuryer'} təsdiqləndi`,
+      user
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'İstifadəçi təsdiqlənərkən xəta',
       error: error.message
     });
   }

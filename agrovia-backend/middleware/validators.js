@@ -18,7 +18,8 @@ const isEmpty = (value) => {
 // Register validation
 exports.validateRegister = (req, res, next) => {
   const errors = [];
-  const { firstName, lastName, email, phone, password, role } = req.body;
+  const body = req.body || {};
+  const { firstName, lastName, email, phone, password, role, region, address } = body;
 
   if (isEmpty(firstName) || firstName.length < 3) {
     errors.push('Ad minimum 3 simvol olmalıdır');
@@ -39,6 +40,11 @@ exports.validateRegister = (req, res, next) => {
     errors.push('Düzgün rol seçin');
   }
 
+  const resolvedRegion = region || address?.region;
+  if (role === 'seller' && isEmpty(resolvedRegion)) {
+    errors.push('Satici qeydiyyatı üçün region seçimi məcburidir');
+  }
+
   if (errors.length > 0) {
     return res.status(400).json({
       success: false,
@@ -53,7 +59,8 @@ exports.validateRegister = (req, res, next) => {
 // Login validation
 exports.validateLogin = (req, res, next) => {
   const errors = [];
-  const { email, password } = req.body;
+  const body = req.body || {};
+  const { email, password } = body;
 
   if (isEmpty(email) || !validator.isEmail(email)) {
     errors.push('Düzgün email daxil edin');
@@ -76,7 +83,8 @@ exports.validateLogin = (req, res, next) => {
 // Product validation
 exports.validateProduct = (req, res, next) => {
   const errors = [];
-  const { name, description, price, unit, minOrderQuantity, stockQuantity, category, region } = req.body;
+  const body = req.body || {};
+  const { name, description, price, unit, minOrderQuantity, stockQuantity, category, region } = body;
 
   if (isEmpty(name) || name.length < 2) {
     errors.push('Məhsul adı minimum 2 simvol olmalıdır');
@@ -117,7 +125,8 @@ exports.validateProduct = (req, res, next) => {
 // Order validation
 exports.validateOrder = (req, res, next) => {
   const errors = [];
-  const { deliveryAddress, paymentMethod } = req.body;
+  const body = req.body || {};
+  const { deliveryAddress, paymentMethod } = body;
 
   if (isEmpty(deliveryAddress)) {
     errors.push('Çatdırılma ünvanı tələb olunur');
@@ -140,7 +149,8 @@ exports.validateOrder = (req, res, next) => {
 // Review validation
 exports.validateReview = (req, res, next) => {
   const errors = [];
-  const { productRating, productReview } = req.body;
+  const body = req.body || {};
+  const { productRating, productReview } = body;
 
   if (!productRating || productRating < 1 || productRating > 5) {
     errors.push('Reytinq 1-5 arası olmalıdır');
