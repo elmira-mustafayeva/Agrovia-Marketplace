@@ -2,6 +2,7 @@ const Review = require('../models/Review');
 const Order = require('../models/Order');
 const Product = require('../models/Product');
 const User = require('../models/User');
+const createNotification = require('../utils/createNotification');
 
 // @desc    Add review
 // @route   POST /api/reviews
@@ -77,6 +78,20 @@ exports.addReview = async (req, res) => {
         'courierInfo.rating': Math.round(avgCourierRating * 10) / 10
       });
     }
+
+    // Notify the seller about the new review
+    const preview = productReview.length > 80
+      ? productReview.substring(0, 80) + '...'
+      : productReview;
+    await createNotification({
+      recipient: product.seller,
+      sender: req.user.id,
+      type: 'review',
+      title: 'Məhsulunuza yeni rəy əlavə edildi',
+      message: `${productRating} ulduz reytinq: "${preview}"`,
+      relatedProduct: product._id,
+      relatedReview: review._id
+    });
 
     res.status(201).json({
       success: true,

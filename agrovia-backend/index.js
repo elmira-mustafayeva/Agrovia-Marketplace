@@ -60,6 +60,7 @@ const deliveryRoutes = require('./routes/delivery');
 const sellerRoutes = require('./routes/seller');
 const courierRoutes = require('./routes/courier');
 const adminRoutes = require('./routes/admin');
+const notificationRoutes = require('./routes/notifications');
 
 // Health check
 app.get('/', (req, res) => {
@@ -93,6 +94,7 @@ app.use('/api/delivery', deliveryRoutes);
 app.use('/api/seller', sellerRoutes);
 app.use('/api/courier', courierRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // 404 handler
 app.use((req, res) => {

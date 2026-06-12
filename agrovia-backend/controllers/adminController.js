@@ -4,6 +4,7 @@ const Order = require('../models/Order');
 const Review = require('../models/Review');
 const asyncHandler = require('../utils/asyncHandler');
 const ApiError = require('../utils/ApiError');
+const createNotification = require('../utils/createNotification');
 
 // @desc    Get admin dashboard
 // @route   GET /api/admin/dashboard
@@ -137,6 +138,14 @@ exports.verifySeller = asyncHandler(async (req, res) => {
     throw new ApiError(404, 'Satici tapılmadı');
   }
 
+  await createNotification({
+    recipient: user._id,
+    sender: req.user._id,
+    type: 'approval',
+    title: 'Satıcı hesabınız doğrulandı',
+    message: 'Admin tərəfindən satıcı hesabınız doğrulandı. Artıq məhsul əlavə edə bilərsiniz.'
+  });
+
   res.status(200).json({
     success: true,
     message: 'Satici təsdiqləndi',
@@ -165,6 +174,16 @@ exports.approveUser = asyncHandler(async (req, res) => {
   }
 
   await user.save();
+
+  await createNotification({
+    recipient: user._id,
+    sender: req.user._id,
+    type: 'approval',
+    title: user.role === 'seller' ? 'Satıcı hesabınız təsdiqləndi' : 'Kuryer hesabınız təsdiqləndi',
+    message: user.role === 'seller'
+      ? 'Admin tərəfindən satıcı hesabınız təsdiqləndi. Artıq məhsul əlavə edə bilərsiniz.'
+      : 'Admin tərəfindən kuryer hesabınız təsdiqləndi. Artıq sifariş qəbul edə bilərsiniz.'
+  });
 
   res.status(200).json({
     success: true,

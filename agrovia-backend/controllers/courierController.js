@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const Order = require('../models/Order');
+const createNotification = require('../utils/createNotification');
 
 // @desc    Get courier dashboard
 // @route   GET /api/courier/dashboard
@@ -105,6 +106,29 @@ exports.acceptOrder = async (req, res) => {
     // Make courier unavailable
     user.courierInfo.isAvailable = false;
     await user.save();
+
+    // Notify buyer and each unique seller
+    const uniqueSellerIds = [...new Set(order.items.map(item => item.seller.toString()))];
+    await Promise.all([
+      createNotification({
+        recipient: order.buyer,
+        sender: req.user.id,
+        type: 'delivery',
+        title: 'Sifarişiniz kuryer tərəfindən qəbul edildi',
+        message: `Kuryer ${user.fullName} sifarişinizi çatdıracaq.`,
+        relatedOrder: order._id
+      }),
+      ...uniqueSellerIds.map(sellerId =>
+        createNotification({
+          recipient: sellerId,
+          sender: req.user.id,
+          type: 'delivery',
+          title: 'Kuryer sifarişi qəbul etdi',
+          message: `Kuryer ${user.fullName} sifarişi çatdırılmaya götürdü.`,
+          relatedOrder: order._id
+        })
+      )
+    ]);
 
     res.status(200).json({
       success: true,

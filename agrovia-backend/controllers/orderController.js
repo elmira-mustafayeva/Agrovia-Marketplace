@@ -4,6 +4,7 @@ const Product = require('../models/Product');
 const User = require('../models/User');
 const asyncHandler = require('../utils/asyncHandler');
 const ApiError = require('../utils/ApiError');
+const createNotification = require('../utils/createNotification');
 
 // Sifariş yarat
 exports.createOrder = asyncHandler(async (req, res) => {
@@ -77,6 +78,21 @@ exports.createOrder = asyncHandler(async (req, res) => {
   // Səbəti təmizlə
   cart.items = [];
   await cart.save();
+
+  // Notify each unique seller about the new order
+  const uniqueSellerIds = [...new Set(orderItems.map(item => item.seller.toString()))];
+  await Promise.all(
+    uniqueSellerIds.map(sellerId =>
+      createNotification({
+        recipient: sellerId,
+        sender: req.user.id,
+        type: 'order',
+        title: 'Yeni sifariş daxil oldu',
+        message: `Yeni sifariş daxil oldu (ID: ${order._id}).`,
+        relatedOrder: order._id
+      })
+    )
+  );
 
   res.status(201).json({
     success: true,
@@ -188,6 +204,27 @@ exports.updateOrderStatus = asyncHandler(async (req, res) => {
   });
 
   await order.save();
+
+  // Notify the buyer about every status change
+  const statusMessages = {
+    confirmed: 'Sifarişiniz satıcı tərəfindən təsdiqləndi',
+    preparing: 'Sifarişiniz hazırlanmağa başladı',
+    ready: 'Sifarişiniz hazırdır, kuryer gözlənilir',
+    out_for_delivery: 'Sifarişiniz kuryer tərəfindən çatdırılmaya götürüldü',
+    delivered: 'Sifarişiniz uğurla çatdırıldı',
+    cancelled: 'Sifarişiniz ləğv edildi',
+    returned: 'Sifarişiniz geri qaytarıldı'
+  };
+  const notifType = (status === 'out_for_delivery' || status === 'delivered') ? 'delivery' : 'order';
+
+  await createNotification({
+    recipient: order.buyer,
+    sender: req.user._id,
+    type: notifType,
+    title: statusMessages[status] || 'Sifariş statusu dəyişdi',
+    message: description || statusMessages[status] || `Sifarişin statusu "${status}" olaraq yeniləndi.`,
+    relatedOrder: order._id
+  });
 
   res.status(200).json({
     success: true,
