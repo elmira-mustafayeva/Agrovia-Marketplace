@@ -55,9 +55,15 @@ exports.getUser = async (req, res) => {
 // @access  Private (Admin)
 exports.updateUser = async (req, res) => {
   try {
+    const allowedFields = ['firstName', 'lastName', 'phone', 'email', 'isActive', 'address'];
+    const updates = {};
+    allowedFields.forEach(field => {
+      if (req.body[field] !== undefined) updates[field] = req.body[field];
+    });
+
     const user = await User.findByIdAndUpdate(
       req.params.id,
-      req.body,
+      updates,
       { new: true, runValidators: true }
     ).select('-password');
 

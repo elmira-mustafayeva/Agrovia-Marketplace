@@ -78,32 +78,29 @@ exports.acceptOrder = async (req, res) => {
       });
     }
 
-    const order = await Order.findById(req.params.id);
+    const order = await Order.findOneAndUpdate(
+      { _id: req.params.id, courier: null, status: { $in: ['preparing', 'confirmed'] } },
+      {
+        courier: req.user.id,
+        status: 'out_for_delivery',
+        assignedAt: new Date(),
+        $push: {
+          trackingHistory: {
+            status: 'out_for_delivery',
+            description: `Kuryer ${user.fullName} tərəfindən qəbul edildi`,
+            timestamp: new Date()
+          }
+        }
+      },
+      { new: true }
+    );
 
     if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: 'Sifariş tapılmadı'
-      });
-    }
-
-    if (order.courier) {
       return res.status(400).json({
         success: false,
-        message: 'Bu sifariş artıq başqa kuryerə təyin olunub'
+        message: 'Sifariş tapılmadı və ya artıq başqa kuryerə təyin olunub'
       });
     }
-
-    order.courier = req.user.id;
-    order.status = 'out_for_delivery';
-    order.assignedAt = new Date();
-    order.trackingHistory.push({
-      status: 'out_for_delivery',
-      description: `Kuryer ${user.fullName} tərəfindən qəbul edildi`,
-      timestamp: new Date()
-    });
-
-    await order.save();
 
     // Make courier unavailable
     user.courierInfo.isAvailable = false;

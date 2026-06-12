@@ -202,8 +202,8 @@ exports.updateOrderStatus = async (req, res) => {
       pending: ['confirmed', 'cancelled'],
       confirmed: ['preparing', 'cancelled'],
       preparing: ['ready'],
-      ready: ['shipped'],
-      shipped: ['delivered'],
+      ready: ['out_for_delivery'],
+      out_for_delivery: ['delivered'],
       delivered: [],
       cancelled: [],
       returned: []
@@ -219,7 +219,7 @@ exports.updateOrderStatus = async (req, res) => {
     order.status = status;
 
     // Xüsusi tarixlər
-    if (status === 'shipped') {
+    if (status === 'out_for_delivery') {
       order.pickedUpAt = new Date();
     }
     if (status === 'delivered') {

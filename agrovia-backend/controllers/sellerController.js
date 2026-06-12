@@ -18,10 +18,11 @@ exports.getDashboard = async (req, res) => {
       status: { $in: ['pending', 'confirmed', 'preparing'] }
     });
 
+    const sellerId = req.user._id;
     const revenue = await Order.aggregate([
-      { $match: { 'items.seller': req.user._id, 'payment.status': 'completed' } },
+      { $match: { 'items.seller': sellerId, 'payment.status': 'completed' } },
       { $unwind: '$items' },
-      { $match: { 'items.seller': req.user._id } },
+      { $match: { 'items.seller': sellerId } },
       { $group: { _id: null, total: { $sum: '$items.totalPrice' } } }
     ]);
 
