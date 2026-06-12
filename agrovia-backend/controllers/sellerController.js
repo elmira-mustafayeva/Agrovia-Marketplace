@@ -1,110 +1,94 @@
 const User = require('../models/User');
 const Product = require('../models/Product');
 const Order = require('../models/Order');
+const asyncHandler = require('../utils/asyncHandler');
 
 // @desc    Get seller dashboard
 // @route   GET /api/seller/dashboard
 // @access  Private (Seller)
-exports.getDashboard = async (req, res) => {
-  try {
-    const user = await User.findById(req.user.id);
+exports.getDashboard = asyncHandler(async (req, res) => {
+  const sellerId = req.user._id;
 
-    const totalProducts = await Product.countDocuments({ seller: req.user.id });
-    const totalOrders = await Order.countDocuments({
-      'items.seller': req.user.id
-    });
-    const pendingOrders = await Order.countDocuments({
+  const [user, totalProducts, totalOrders, pendingOrders, revenue] = await Promise.all([
+    User.findById(req.user.id),
+    Product.countDocuments({ seller: req.user.id }),
+    Order.countDocuments({ 'items.seller': req.user.id }),
+    Order.countDocuments({
       'items.seller': req.user.id,
       status: { $in: ['pending', 'confirmed', 'preparing'] }
-    });
-
-    const sellerId = req.user._id;
-    const revenue = await Order.aggregate([
+    }),
+    Order.aggregate([
       { $match: { 'items.seller': sellerId, 'payment.status': 'completed' } },
       { $unwind: '$items' },
       { $match: { 'items.seller': sellerId } },
       { $group: { _id: null, total: { $sum: '$items.totalPrice' } } }
-    ]);
+    ])
+  ]);
 
-    res.status(200).json({
-      success: true,
-      stats: {
-        businessName: user.sellerInfo?.businessName,
-        isVerified: user.sellerInfo?.isVerified,
-        rating: user.sellerInfo?.rating,
-        totalProducts,
-        totalOrders,
-        pendingOrders,
-        revenue: revenue[0]?.total || 0
-      }
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Dashboard gətirilərkən xəta',
-      error: error.message
-    });
-  }
-};
+  res.status(200).json({
+    success: true,
+    stats: {
+      businessName: user.sellerInfo?.businessName,
+      isVerified: user.sellerInfo?.isVerified,
+      rating: user.sellerInfo?.rating,
+      totalProducts,
+      totalOrders,
+      pendingOrders,
+      revenue: revenue[0]?.total || 0
+    }
+  });
+});
 
 // @desc    Get seller orders
 // @route   GET /api/seller/orders
 // @access  Private (Seller)
-exports.getSellerOrders = async (req, res) => {
-  try {
-    const { status } = req.query;
+exports.getSellerOrders = asyncHandler(async (req, res) => {
+  const { status, page = 1, limit = 20 } = req.query;
 
-    const filter = { 'items.seller': req.user.id };
-    if (status) filter.status = status;
+  const filter = { 'items.seller': req.user.id };
+  if (status) filter.status = status;
 
-    const orders = await Order.find(filter)
+  const [orders, total] = await Promise.all([
+    Order.find(filter)
       .populate('buyer', 'firstName lastName phone')
       .populate('items.product', 'name images')
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .skip((Number(page) - 1) * Number(limit))
+      .limit(Number(limit)),
+    Order.countDocuments(filter)
+  ]);
 
-    res.status(200).json({
-      success: true,
-      count: orders.length,
-      orders
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Sifarişlər gətirilərkən xəta',
-      error: error.message
-    });
-  }
-};
+  res.status(200).json({
+    success: true,
+    count: orders.length,
+    total,
+    totalPages: Math.ceil(total / Number(limit)),
+    currentPage: Number(page),
+    orders
+  });
+});
 
 // @desc    Update seller profile
 // @route   PUT /api/seller/profile
 // @access  Private (Seller)
-exports.updateSellerProfile = async (req, res) => {
-  try {
-    const { businessName, businessDescription, taxNumber } = req.body;
+exports.updateSellerProfile = asyncHandler(async (req, res) => {
+  const { businessName, businessDescription, taxNumber } = req.body;
 
-    const user = await User.findByIdAndUpdate(
-      req.user.id,
-      {
-        $set: {
-          'sellerInfo.businessName': businessName,
-          'sellerInfo.businessDescription': businessDescription,
-          'sellerInfo.taxNumber': taxNumber
-        }
-      },
-      { new: true, runValidators: true }
-    );
+  const user = await User.findByIdAndUpdate(
+    req.user.id,
+    {
+      $set: {
+        'sellerInfo.businessName': businessName,
+        'sellerInfo.businessDescription': businessDescription,
+        'sellerInfo.taxNumber': taxNumber
+      }
+    },
+    { new: true, runValidators: true }
+  );
 
-    res.status(200).json({
-      success: true,
-      message: 'Satici profili yeniləndi',
-      sellerInfo: user.sellerInfo
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Profil yenilənərkən xəta',
-      error: error.message
-    });
-  }
-};
+  res.status(200).json({
+    success: true,
+    message: 'Satici profili yeniləndi',
+    sellerInfo: user.sellerInfo
+  });
+});
