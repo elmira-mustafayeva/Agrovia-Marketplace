@@ -20,17 +20,19 @@ const app = express();
 app.use(helmet());
 app.use(morgan('dev'));
 
-// ✅ 1. CORS (əvvəl)
+// CORS
 app.use(cors({
   origin: process.env.FRONTEND_URL || 'http://localhost:5175',
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// ✅ 2. BODY PARSERS (rate limit-dən ƏVVƏL!)
+// Body parsers
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ✅ 3. RATE LIMIT (body-dan SONRA!)
+// Rate limit
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 100,
@@ -43,19 +45,6 @@ const apiLimiter = rateLimit({
 });
 
 app.use('/api', apiLimiter);
-
-// Middleware-lər
-app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5175',
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
-}));
-
-app.options(/.*/, cors());
-
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
 // Route faylları
 const authRoutes = require('./routes/auth');
