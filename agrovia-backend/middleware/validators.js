@@ -33,8 +33,8 @@ exports.validateRegister = (req, res, next) => {
   if (isEmpty(phone)) {
     errors.push('Telefon nömrəsi tələb olunur');
   }
-  if (isEmpty(password) || password.length < 6) {
-    errors.push('Şifrə minimum 6 simvol olmalıdır');
+  if (isEmpty(password) || password.length < 8) {
+    errors.push('Şifrə minimum 8 simvol olmalıdır');
   }
   if (!['admin', 'seller', 'buyer', 'courier'].includes(role)) {
     errors.push('Düzgün rol seçin');
