@@ -29,7 +29,15 @@ app.use(cors({
 }));
 
 // Body parsers
-app.use(express.json());
+// The verify callback saves the raw Buffer for the Stripe webhook route only.
+// All other routes continue to receive a fully-parsed JSON body — nothing changes.
+app.use(express.json({
+  verify: (req, res, buf) => {
+    if (req.originalUrl.startsWith('/api/payments/webhook')) {
+      req.rawBody = buf;
+    }
+  }
+}));
 app.use(express.urlencoded({ extended: true }));
 
 // Rate limit
@@ -61,6 +69,7 @@ const sellerRoutes = require('./routes/seller');
 const courierRoutes = require('./routes/courier');
 const adminRoutes = require('./routes/admin');
 const notificationRoutes = require('./routes/notifications');
+const paymentRoutes = require('./routes/payments');
 
 // Health check
 app.get('/', (req, res) => {
@@ -95,6 +104,7 @@ app.use('/api/seller', sellerRoutes);
 app.use('/api/courier', courierRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/payments', paymentRoutes);
 
 // 404 handler
 app.use((req, res) => {

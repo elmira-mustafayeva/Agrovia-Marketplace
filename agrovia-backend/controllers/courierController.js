@@ -211,7 +211,7 @@ exports.updateDeliveryStatus = async (req, res) => {
     
     if (status === 'delivered') {
       order.deliveredAt = new Date();
-      order.payment.status = 'completed';
+      order.payment.status = 'paid';
       
       // Make courier available again
       await User.findByIdAndUpdate(req.user.id, {

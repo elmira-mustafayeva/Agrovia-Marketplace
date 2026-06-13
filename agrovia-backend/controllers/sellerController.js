@@ -18,7 +18,7 @@ exports.getDashboard = asyncHandler(async (req, res) => {
       status: { $in: ['pending', 'confirmed', 'preparing'] }
     }),
     Order.aggregate([
-      { $match: { 'items.seller': sellerId, 'payment.status': 'completed' } },
+      { $match: { 'items.seller': sellerId, 'payment.status': 'paid' } },
       { $unwind: '$items' },
       { $match: { 'items.seller': sellerId } },
       { $group: { _id: null, total: { $sum: '$items.totalPrice' } } }

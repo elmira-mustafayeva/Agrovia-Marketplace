@@ -193,7 +193,7 @@ exports.updateOrderStatus = asyncHandler(async (req, res) => {
   }
   if (status === 'delivered') {
     order.deliveredAt = new Date();
-    order.payment.status = 'completed';
+    order.payment.status = 'paid';
   }
 
   // Tracking tarixçəsi

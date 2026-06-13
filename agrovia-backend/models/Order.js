@@ -106,10 +106,11 @@ const orderSchema = new mongoose.Schema(
       },
       status: {
         type: String,
-        enum: ["pending", "completed", "failed", "refunded"],
+        enum: ["pending", "paid", "failed", "refunded"],
         default: "pending",
         index: true
       },
+      paymentIntentId: { type: String },
       transactionId: String,
       paidAt: Date
     },
@@ -204,5 +205,6 @@ orderSchema.pre("save", function (next) {
 
 // # INDEXES
 orderSchema.index({ createdAt: -1 });
+orderSchema.index({ 'payment.paymentIntentId': 1 }, { sparse: true });
 
 module.exports = mongoose.model("Order", orderSchema);

@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const mongoose = require('mongoose');
 const User = require('../models/User');
 const asyncHandler = require('../utils/asyncHandler');
 const ApiError = require('../utils/ApiError');
@@ -141,7 +142,7 @@ exports.verifyEmail = asyncHandler(async (req, res) => {
   // Explicitly select the token fields so we can read and clear them
   const user = await User.findOne({
     emailVerificationToken: hashedToken,
-    emailVerificationExpire: { $gt: Date.now() }
+    emailVerificationExpire: mongoose.trusted({ $gt: new Date() })
   }).select('+emailVerificationToken +emailVerificationExpire');
 
   if (!user) {
@@ -357,7 +358,7 @@ exports.resetPassword = asyncHandler(async (req, res) => {
 
   const user = await User.findOne({
     passwordResetToken: hashedToken,
-    passwordResetExpire: { $gt: Date.now() }
+    passwordResetExpire: mongoose.trusted({ $gt: new Date() })
   }).select('+passwordResetToken +passwordResetExpire');
 
   if (!user) {

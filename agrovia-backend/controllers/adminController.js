@@ -38,7 +38,7 @@ exports.getDashboard = asyncHandler(async (req, res) => {
     Order.countDocuments({ status: 'pending' }),
     Order.countDocuments({ status: 'delivered' }),
     Order.aggregate([
-      { $match: { 'payment.status': 'completed' } },
+      { $match: { 'payment.status': 'paid' } },
       { $group: { _id: null, total: { $sum: '$totalAmount' } } }
     ])
   ]);
