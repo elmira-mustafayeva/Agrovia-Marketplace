@@ -27,6 +27,10 @@ export const api = {
   me: () => http.get('/auth/me').then(unwrap),
   sellerDashboard: () => http.get('/seller/dashboard').then(unwrap),
   sellerOrders: () => http.get('/seller/orders').then(unwrap),
+  sellerProducts: () => http.get('/products/my/products').then(unwrap),
+  createSellerProduct: (formData) => http.post('/products', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }).then(unwrap),
   courierDashboard: () => http.get('/courier/dashboard').then(unwrap),
   courierOrders: () => http.get('/courier/deliveries').then(unwrap),
   adminDashboard: () => http.get('/admin/dashboard').then(unwrap),

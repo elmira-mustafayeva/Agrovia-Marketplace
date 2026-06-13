@@ -29,6 +29,25 @@ const videoStorage = new CloudinaryStorage({
   }
 });
 
+// Məhsul media storage — şəkil və video eyni request-də, ayrı Cloudinary qovluqlarına
+const productMediaStorage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: (req, file) => {
+    if (file.mimetype.startsWith('video/')) {
+      return {
+        folder: 'agrovia/videos',
+        resource_type: 'video',
+        allowed_formats: ['mp4', 'mov', 'avi', 'wmv']
+      };
+    }
+    return {
+      folder: 'agrovia/products',
+      allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
+      transformation: [{ width: 1200, height: 1200, crop: 'limit' }]
+    };
+  }
+});
+
 // Avatar üçün storage
 const avatarStorage = new CloudinaryStorage({
   cloudinary: cloudinary,
@@ -40,15 +59,24 @@ const avatarStorage = new CloudinaryStorage({
 });
 
 // Upload middleware-ləri
-exports.uploadImages = multer({ 
+exports.uploadImages = multer({
   storage: imageStorage,
   limits: { fileSize: 5 * 1024 * 1024 } // 5MB
 }).array('images', 5); // Maksimum 5 şəkil
 
-exports.uploadVideo = multer({ 
+exports.uploadVideo = multer({
   storage: videoStorage,
   limits: { fileSize: 50 * 1024 * 1024 } // 50MB
 }).single('video');
+
+// Məhsul üçün birləşik upload: images (max 5) + video (max 1) eyni request-də
+exports.uploadProductMedia = multer({
+  storage: productMediaStorage,
+  limits: { fileSize: 50 * 1024 * 1024 } // 50MB (video üçün)
+}).fields([
+  { name: 'images', maxCount: 5 },
+  { name: 'video', maxCount: 1 }
+]);
 
 exports.uploadAvatar = multer({ 
   storage: avatarStorage,

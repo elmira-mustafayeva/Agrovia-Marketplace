@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { api } from '../api/agroviaApi';
 import { setCredentials } from '../features/auth/authSlice';
 import { SectionTitle } from '../components/Ui';
+import { useRegions } from '../hooks/useAgroviaData';
 
 const loginSchema = z.object({ email: z.string().email('Düzgün email yaz'), password: z.string().min(6, 'Şifrə ən az 6 simvol olmalıdır') });
 const registerSchema = z.object({
@@ -15,19 +16,22 @@ const registerSchema = z.object({
   email: z.string().email(),
   phone: z.string().min(8),
   password: z.string().min(6),
-  role: z.enum(['buyer', 'seller', 'courier'])
+  role: z.enum(['buyer', 'seller', 'courier']),
+  region: z.string().min(1, 'Region seçimi məcburidir')
 });
 
 const initialLogin = { email: '', password: '' };
-const initialRegister = { firstName: '', lastName: '', email: '', phone: '', password: '', role: 'buyer' };
+const initialRegister = { firstName: '', lastName: '', email: '', phone: '', password: '', role: 'buyer', region: '' };
 
 export default function AuthPage() {
   const [mode, setMode] = useState('login');
   const [loginForm, setLoginForm] = useState(initialLogin);
   const [registerForm, setRegisterForm] = useState(initialRegister);
   const [error, setError] = useState('');
+  const [info, setInfo] = useState('');
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const regions = useRegions().data || [];
 
   const loginMutation = useMutation({
     mutationFn: api.login,
@@ -41,8 +45,18 @@ export default function AuthPage() {
   const registerMutation = useMutation({
     mutationFn: api.register,
     onSuccess: (data) => {
-      dispatch(setCredentials(data));
-      navigate('/dashboard');
+      if (data?.token) {
+        dispatch(setCredentials(data));
+        navigate('/dashboard');
+        return;
+      }
+      setInfo(
+        data?.data?.pendingApproval
+          ? (data.message || 'Qeydiyyat qəbul edildi. Emailinizi doğrulayın və admin təsdiqini gözləyin.')
+          : 'Qeydiyyat uğurludur. Emailinizi yoxlayın və hesabınızı doğrulayın.'
+      );
+      setMode('login');
+      setRegisterForm(initialRegister);
     },
     onError: (err) => setError(err.response?.data?.message || 'Qeydiyyat alınmadı')
   });
@@ -50,6 +64,7 @@ export default function AuthPage() {
   const submitLogin = (event) => {
     event.preventDefault();
     setError('');
+    setInfo('');
     const parsed = loginSchema.safeParse(loginForm);
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message || 'Form xətası');
@@ -61,12 +76,17 @@ export default function AuthPage() {
   const submitRegister = (event) => {
     event.preventDefault();
     setError('');
+    setInfo('');
     const parsed = registerSchema.safeParse(registerForm);
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message || 'Form xətası');
       return;
     }
-    registerMutation.mutate(registerForm);
+
+    const { region, ...rest } = registerForm;
+    const payload = { ...rest, address: { region } };
+
+    registerMutation.mutate(payload);
   };
 
   return (
@@ -79,6 +99,7 @@ export default function AuthPage() {
             <button type="button" className={mode === 'register' ? 'btn-primary' : 'btn-secondary'} onClick={() => setMode('register')}><UserPlus className="h-4 w-4" />Qeydiyyat</button>
           </div>
           {error ? <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div> : null}
+          {info ? <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{info}</div> : null}
           {mode === 'login' ? (
             <form className="mt-6 grid gap-4" onSubmit={submitLogin}>
               <input className="input-shell" placeholder="Email" value={loginForm.email} onChange={(event) => setLoginForm((current) => ({ ...current, email: event.target.value }))} />
@@ -96,6 +117,17 @@ export default function AuthPage() {
                 <option value="buyer">Buyer</option>
                 <option value="seller">Seller</option>
                 <option value="courier">Courier</option>
+              </select>
+              <select
+                className="input-shell sm:col-span-2"
+                value={registerForm.region}
+                onChange={(event) => setRegisterForm((current) => ({ ...current, region: event.target.value }))}
+                required
+              >
+                <option value="">Region seçin</option>
+                {regions.map((r) => (
+                  <option key={r._id} value={r._id}>{r.name}</option>
+                ))}
               </select>
               <button type="submit" className="btn-primary sm:col-span-2">Qeydiyyatdan keç</button>
             </form>

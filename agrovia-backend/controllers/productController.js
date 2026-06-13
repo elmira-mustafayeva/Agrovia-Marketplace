@@ -107,6 +107,7 @@ exports.createProduct = async (req, res) => {
       description,
       price,
       unit,
+      saleType,
       minOrderQuantity,
       stockQuantity,
       category,
@@ -116,12 +117,21 @@ exports.createProduct = async (req, res) => {
       discount
     } = req.body;
 
-    // Şəkilləri hazırla
-    const images = req.files ? req.files.map((file, index) => ({
+    // req.files is an object from .fields(): { images: [...], video: [...] }
+    const imageFiles = req.files?.images || [];
+    const videoFile = req.files?.video?.[0] || null;
+
+    const images = imageFiles.map((file, index) => ({
       public_id: file.filename,
       url: file.path,
-      isMain: index === 0 // Birinci şəkil əsas şəkil olur
-    })) : [];
+      isMain: index === 0
+    }));
+
+    const videos = videoFile ? [{
+      public_id: videoFile.filename,
+      url: videoFile.path,
+      thumbnail: null
+    }] : [];
 
     const product = await Product.create({
       seller: req.user.id,
@@ -129,15 +139,17 @@ exports.createProduct = async (req, res) => {
       description,
       price: Number(price),
       unit,
+      saleType: saleType || 'retail',
       minOrderQuantity: Number(minOrderQuantity),
       stockQuantity: Number(stockQuantity),
       category,
       region,
       images,
+      videos,
       attributes: attributes ? JSON.parse(attributes) : [],
       tags: tags ? JSON.parse(tags) : [],
       discount: discount ? JSON.parse(discount) : { percentage: 0 },
-      status: 'pending' // Admin təsdiqi gözləyir
+      status: 'pending'
     });
 
     res.status(201).json({
@@ -175,7 +187,7 @@ exports.updateProduct = async (req, res) => {
     }
 
     const allowedUpdates = [
-      'name', 'description', 'price', 'unit', 'minOrderQuantity',
+      'name', 'description', 'price', 'unit', 'saleType', 'minOrderQuantity',
       'stockQuantity', 'category', 'region', 'attributes', 'tags', 'discount', 'status'
     ];
 
@@ -192,14 +204,24 @@ exports.updateProduct = async (req, res) => {
       }
     });
 
-    // Yeni şəkillər əlavə edilibsə
-    if (req.files && req.files.length > 0) {
-      const newImages = req.files.map((file, index) => ({
+    // req.files is an object from .fields(): { images: [...], video: [...] }
+    const newImageFiles = req.files?.images || [];
+    if (newImageFiles.length > 0) {
+      const newImages = newImageFiles.map((file, index) => ({
         public_id: file.filename,
         url: file.path,
         isMain: product.images.length === 0 && index === 0
       }));
       updates.images = [...product.images, ...newImages];
+    }
+
+    const newVideoFile = req.files?.video?.[0] || null;
+    if (newVideoFile) {
+      updates.videos = [...product.videos, {
+        public_id: newVideoFile.filename,
+        url: newVideoFile.path,
+        thumbnail: null
+      }];
     }
 
     product = await Product.findByIdAndUpdate(

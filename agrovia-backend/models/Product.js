@@ -49,6 +49,11 @@ const productSchema = new mongoose.Schema(
       min: [1, 'Minimum 1 olmalıdır'],
       default: 1
     },
+    saleType: {
+      type: String,
+      enum: ['retail', 'wholesale', 'both'],
+      default: 'retail'
+    },
     stockQuantity: {
       type: Number,
       required: [true, 'Stok miqdarı tələb olunur'],
