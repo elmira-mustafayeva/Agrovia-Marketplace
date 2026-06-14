@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
-import { Minus, Plus, ShoppingBag, Trash2 } from 'lucide-react';
+import { Heart, Minus, Plus, ShoppingBag, Trash2 } from 'lucide-react';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, CardNumberElement, CardExpiryElement, CardCvcElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { api } from '../api/agroviaApi';
-import { useCart, useRegions } from '../hooks/useAgroviaData';
+import { useCart, useRegions, useWishlist } from '../hooks/useAgroviaData';
 import { EmptyState, LoadingGrid, SectionTitle, UNIT_LABELS, formatPrice } from '../components/Ui';
 
 const stripePromise = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY
@@ -133,6 +133,49 @@ export default function CartPage() {
     mutationFn: api.clearCart,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['cart'] })
   });
+
+  const wishlistQuery = useWishlist();
+  const wishlistItems = wishlistQuery.data?.items || [];
+
+  const isInWishlist = (productId) => {
+    if (!productId) return false;
+    return wishlistItems.some((wi) => {
+      const id = typeof wi.product === 'object' ? wi.product?._id : wi.product;
+      return String(id) === String(productId);
+    });
+  };
+
+  const addToWishlistMutation = useMutation({
+    mutationFn: api.addToWishlist,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['wishlist'] });
+      showToast('Məhsul wishlist-ə əlavə edildi.');
+    },
+    onError: (err) => {
+      showToast(err.response?.data?.message || 'Wishlist-ə əlavə edilmədi.', 'error');
+    }
+  });
+
+  const removeFromWishlistMutation = useMutation({
+    mutationFn: api.removeFromWishlist,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['wishlist'] });
+      showToast('Məhsul wishlist-dən silindi.');
+    },
+    onError: (err) => {
+      showToast(err.response?.data?.message || 'Silinərkən xəta baş verdi.', 'error');
+    }
+  });
+
+  const handleWishlistToggle = (item) => {
+    const productId = item.product?._id;
+    if (!productId) return;
+    if (isInWishlist(productId)) {
+      removeFromWishlistMutation.mutate(productId);
+    } else {
+      addToWishlistMutation.mutate({ productId });
+    }
+  };
 
   const handleRemoveClick = (item) => {
     setConfirmPending({ itemId: item._id, productName: item.product?.name || 'məhsul' });
@@ -334,14 +377,25 @@ export default function CartPage() {
                           <span className="text-slate-500">/ {UNIT_LABELS[item.product?.unit] || item.product?.unit}</span>
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveClick(item)}
-                        className="rounded-full p-2 text-slate-400 transition hover:bg-red-50 hover:text-red-500"
-                        title="Məhsulu sil"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => handleWishlistToggle(item)}
+                          className="rounded-full p-2 transition hover:bg-rose-50 disabled:opacity-40"
+                          title={isInWishlist(item.product?._id) ? 'Wishlist-dən çıxar' : 'Wishlist-ə əlavə et'}
+                          disabled={addToWishlistMutation.isPending || removeFromWishlistMutation.isPending}
+                        >
+                          <Heart className={`h-4 w-4 transition ${isInWishlist(item.product?._id) ? 'fill-rose-500 text-rose-500' : 'text-slate-400'}`} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveClick(item)}
+                          className="rounded-full p-2 text-slate-400 transition hover:bg-red-50 hover:text-red-500"
+                          title="Məhsulu sil"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
                     </div>
                     <div className="mt-3 flex items-center justify-between gap-4">
                       <div className="flex items-center gap-2">

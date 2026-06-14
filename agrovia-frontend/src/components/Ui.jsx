@@ -13,6 +13,17 @@ export const UNIT_LABELS = {
   ton: 'ton'
 };
 
+export const getDiscountedPrice = (product) => {
+  if (!product) return 0;
+  const pct = product?.discount?.percentage;
+  if (pct > 0) {
+    return Math.round((product.price - product.price * pct / 100) * 100) / 100;
+  }
+  return product.price || 0;
+};
+
+export const hasDiscount = (product) => (product?.discount?.percentage || 0) > 0;
+
 const SALE_TYPE_LABELS = {
   retail: 'Pərakəndə',
   wholesale: 'Topdan',

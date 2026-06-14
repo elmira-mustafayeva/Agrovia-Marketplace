@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { Heart, Shuffle, ShoppingBag, Trash2 } from 'lucide-react';
 import { api } from '../api/agroviaApi';
 import { useWishlist } from '../hooks/useAgroviaData';
-import { EmptyState, LoadingGrid, SectionTitle, formatPrice } from '../components/Ui';
+import { EmptyState, LoadingGrid, SectionTitle, formatPrice, UNIT_LABELS, getDiscountedPrice, hasDiscount } from '../components/Ui';
 
 export default function WishlistPage() {
   const queryClient = useQueryClient();
@@ -127,7 +127,18 @@ export default function WishlistPage() {
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <div className="font-semibold text-ink">{item.product?.name}</div>
-                        <div className="mt-1 text-sm text-slate-500">{formatPrice(item.product?.price)} • {item.product?.unit}</div>
+                        <div className="mt-1 flex flex-wrap items-center gap-2 text-sm">
+                          <span className="font-semibold text-forest">{formatPrice(getDiscountedPrice(item.product))}</span>
+                          <span className="text-slate-500">/ {UNIT_LABELS[item.product?.unit] || item.product?.unit}</span>
+                          {hasDiscount(item.product) ? (
+                            <span className="text-xs text-slate-400 line-through">{formatPrice(item.product?.price)}</span>
+                          ) : null}
+                        </div>
+                        {item.product?.minOrderQuantity > 1 ? (
+                          <div className="mt-0.5 text-xs text-slate-500">
+                            Minimum sifariş: {item.product.minOrderQuantity} {UNIT_LABELS[item.product?.unit] || item.product?.unit}
+                          </div>
+                        ) : null}
                       </div>
                       <button
                         type="button"
