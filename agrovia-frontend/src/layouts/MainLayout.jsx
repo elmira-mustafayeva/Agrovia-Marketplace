@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
+import { NavLink } from 'react-router-dom';
 import { ChevronRight, Mail, MapPinned, PhoneCall, ShieldCheck, Sparkles } from 'lucide-react';
 import Navigation from '../components/Navigation';
 
@@ -12,10 +13,25 @@ export default function MainLayout({ children }) {
       {menuOpen ? (
         <div className="border-b border-slate-200 bg-white px-4 py-3 text-sm lg:hidden">
           <div className="section-shell flex flex-wrap gap-2">
-            {['/', '/shop', '/delivery', '/orders', '/dashboard', '/cart', '/wishlist'].map((path) => (
-              <a key={path} href={path} className="rounded-full bg-slate-100 px-4 py-2 text-slate-700">
-                {path}
-              </a>
+            {[
+              { to: '/', label: 'Ana səhifə' },
+              { to: '/shop', label: 'Mağaza' },
+              { to: '/delivery', label: 'Çatdırılma' },
+              { to: '/orders', label: 'Sifarişlər' },
+              { to: '/dashboard', label: 'Panel' },
+              { to: '/cart', label: 'Səbət' },
+              { to: '/wishlist', label: 'Wishlist' }
+            ].map(({ to, label }) => (
+              <NavLink
+                key={to}
+                to={to}
+                onClick={() => setMenuOpen(false)}
+                className={({ isActive }) =>
+                  `rounded-full px-4 py-2 ${isActive ? 'bg-forest text-white' : 'bg-slate-100 text-slate-700'}`
+                }
+              >
+                {label}
+              </NavLink>
             ))}
           </div>
         </div>

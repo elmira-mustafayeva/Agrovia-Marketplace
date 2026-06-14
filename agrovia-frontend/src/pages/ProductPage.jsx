@@ -1,22 +1,70 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useSelector } from 'react-redux';
 import { Heart, Package, ShoppingBag, Star, Truck } from 'lucide-react';
 import { api } from '../api/agroviaApi';
-import { useProduct, useReviews } from '../hooks/useAgroviaData';
+import { useOrders, useProduct, useReviews } from '../hooks/useAgroviaData';
 import { EmptyState, LoadingGrid, SectionTitle, formatDate, formatPrice, getProductImage } from '../components/Ui';
 
 export default function ProductPage() {
   const { id } = useParams();
+  const { user } = useSelector((state) => state.auth);
   const [reviewNote, setReviewNote] = useState('');
+  const [reviewRating, setReviewRating] = useState(5);
+  const [selectedOrderId, setSelectedOrderId] = useState('');
+  const [reviewError, setReviewError] = useState('');
+  const [reviewSuccess, setReviewSuccess] = useState('');
   const queryClient = useQueryClient();
   const productQuery = useProduct(id);
   const reviewsQuery = useReviews(id);
+  const ordersQuery = useOrders(!!user);
   const product = productQuery.data;
   const reviews = reviewsQuery.data?.reviews || [];
 
+  const deliveredOrdersForProduct = (ordersQuery.data || []).filter(
+    (order) =>
+      order.status === 'delivered' &&
+      order.items.some((item) => {
+        const itemProductId = item.product?._id ?? item.product;
+        return String(itemProductId) === id;
+      })
+  );
+  const canReview = deliveredOrdersForProduct.length > 0;
+
   const addToCartMutation = useMutation({ mutationFn: api.addToCart, onSuccess: () => queryClient.invalidateQueries({ queryKey: ['cart'] }) });
   const addToWishlistMutation = useMutation({ mutationFn: api.addToWishlist, onSuccess: () => queryClient.invalidateQueries({ queryKey: ['wishlist'] }) });
+
+  const addReviewMutation = useMutation({
+    mutationFn: api.addReview,
+    onSuccess: () => {
+      setReviewNote('');
+      setReviewRating(5);
+      setReviewError('');
+      setReviewSuccess('Rəyiniz göndərildi.');
+      queryClient.invalidateQueries({ queryKey: ['reviews', id] });
+    },
+    onError: (err) => {
+      setReviewSuccess('');
+      setReviewError(err.response?.data?.message || 'Rəy göndərilmədi');
+    }
+  });
+
+  const submitReview = () => {
+    setReviewError('');
+    setReviewSuccess('');
+    if (!reviewNote.trim()) {
+      setReviewError('Rəy mətni boş ola bilməz');
+      return;
+    }
+    const orderId = selectedOrderId || deliveredOrdersForProduct[0]?._id;
+    addReviewMutation.mutate({
+      orderId,
+      productId: id,
+      productRating: reviewRating,
+      productReview: reviewNote.trim()
+    });
+  };
 
   if (productQuery.isLoading) {
     return <section className="section-shell py-10"><LoadingGrid rows={1} /></section>;
@@ -112,10 +160,63 @@ export default function ProductPage() {
           </div>
         </div>
         <div className="panel space-y-4">
-          <div className="flex items-center gap-2 text-sm font-semibold text-ink"><Package className="h-4 w-4 text-forest" />Sürətli rəy formu</div>
-          <textarea className="input-shell min-h-40" placeholder="Rəy yazmaq üçün giriş tələb olunur" value={reviewNote} onChange={(event) => setReviewNote(event.target.value)} />
-          <button type="button" className="btn-primary w-full" onClick={() => setReviewNote('')}>Rəyi göndər</button>
-          <p className="text-xs leading-6 text-slate-500">Bu demo formu backend-dəki `POST /api/reviews` strukturuna uyğun UI göstərir.</p>
+          <div className="flex items-center gap-2 text-sm font-semibold text-ink"><Package className="h-4 w-4 text-forest" />Rəy yaz</div>
+          {!user ? (
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
+              Rəy yazmaq üçün <Link to="/auth" className="font-semibold text-forest underline">daxil olun</Link>.
+            </div>
+          ) : !canReview ? (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-6 text-center text-sm text-amber-800">
+              Rəy yazmaq üçün bu məhsulu sifariş edib təhvil almalısınız.
+            </div>
+          ) : (
+            <>
+              {deliveredOrdersForProduct.length > 1 ? (
+                <select
+                  className="input-shell"
+                  value={selectedOrderId || deliveredOrdersForProduct[0]._id}
+                  onChange={(event) => setSelectedOrderId(event.target.value)}
+                  disabled={addReviewMutation.isPending}
+                >
+                  {deliveredOrdersForProduct.map((order) => (
+                    <option key={order._id} value={order._id}>
+                      Sifariş #{order.orderNumber || order._id.slice(-6)}
+                    </option>
+                  ))}
+                </select>
+              ) : null}
+              <select
+                className="input-shell"
+                value={reviewRating}
+                onChange={(event) => setReviewRating(Number(event.target.value))}
+                disabled={addReviewMutation.isPending}
+              >
+                <option value={5}>⭐⭐⭐⭐⭐ — 5/5</option>
+                <option value={4}>⭐⭐⭐⭐ — 4/5</option>
+                <option value={3}>⭐⭐⭐ — 3/5</option>
+                <option value={2}>⭐⭐ — 2/5</option>
+                <option value={1}>⭐ — 1/5</option>
+              </select>
+              <textarea
+                className="input-shell min-h-40"
+                placeholder="Məhsul haqqında rəyinizi yazın..."
+                value={reviewNote}
+                onChange={(event) => setReviewNote(event.target.value)}
+                disabled={addReviewMutation.isPending}
+              />
+              {reviewError ? <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{reviewError}</div> : null}
+              {reviewSuccess ? <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{reviewSuccess}</div> : null}
+              <button
+                type="button"
+                className="btn-primary w-full"
+                onClick={submitReview}
+                disabled={addReviewMutation.isPending}
+              >
+                {addReviewMutation.isPending ? 'Göndərilir...' : 'Rəyi göndər'}
+              </button>
+            </>
+          )}
+          <p className="text-xs leading-6 text-slate-500">Rəy yalnız çatdırılmış sifariş üçün qəbul edilir.</p>
         </div>
       </div>
     </section>

@@ -114,6 +114,10 @@ exports.toggleUserStatus = asyncHandler(async (req, res) => {
     throw new ApiError(404, 'İstifadəçi tapılmadı');
   }
 
+  if (user.role === 'admin') {
+    throw new ApiError(400, 'Admin deaktiv edilə bilməz');
+  }
+
   user.isActive = !user.isActive;
   await user.save();
 
