@@ -10,6 +10,8 @@ import WishlistPage from './pages/WishlistPage';
 import OrdersPage from './pages/OrdersPage';
 import DeliveryPage from './pages/DeliveryPage';
 import AuthPage from './pages/AuthPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 import DashboardPage from './pages/DashboardPage';
 import NotFoundPage from './pages/NotFoundPage';
 
@@ -22,6 +24,8 @@ export default function App() {
         <Route path="/products/:id" element={<ProductPage />} />
         <Route path="/delivery" element={<DeliveryPage />} />
         <Route path="/auth" element={<AuthPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
         <Route
           path="/cart"
           element={

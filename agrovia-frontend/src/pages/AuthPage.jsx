@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { useMutation } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { LogIn, UserPlus } from 'lucide-react';
 import { z } from 'zod';
 import { api } from '../api/agroviaApi';
@@ -108,6 +108,9 @@ export default function AuthPage() {
               <input className="input-shell" placeholder="Email" value={loginForm.email} onChange={(event) => setLoginForm((current) => ({ ...current, email: event.target.value }))} />
               <input className="input-shell" placeholder="Şifrə" type="password" value={loginForm.password} onChange={(event) => setLoginForm((current) => ({ ...current, password: event.target.value }))} />
               <button type="submit" className="btn-primary">Daxil ol</button>
+              <div className="text-right text-sm">
+                <Link to="/forgot-password" className="text-forest underline">Şifrəni unutmusunuz?</Link>
+              </div>
             </form>
           ) : (
             <form className="mt-6 grid gap-4 sm:grid-cols-2" onSubmit={submitRegister}>
