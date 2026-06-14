@@ -197,8 +197,9 @@ exports.approveUser = asyncHandler(async (req, res) => {
 // @access  Private (Admin)
 exports.getPendingProducts = asyncHandler(async (req, res) => {
   const products = await Product.find({ status: 'pending' })
-    .populate('seller', 'firstName lastName sellerInfo.businessName')
+    .populate('seller', 'firstName lastName sellerInfo.businessName sellerInfo.saleType')
     .populate('category', 'name')
+    .populate('region', 'name')
     .sort({ createdAt: -1 });
 
   res.status(200).json({

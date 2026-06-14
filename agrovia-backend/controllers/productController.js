@@ -45,7 +45,7 @@ exports.getProducts = async (req, res) => {
     const skip = (Number(page) - 1) * Number(limit);
 
     const products = await Product.find(filter)
-      .populate('seller', 'firstName lastName sellerInfo.businessName sellerInfo.rating')
+      .populate('seller', 'firstName lastName sellerInfo.businessName sellerInfo.rating sellerInfo.saleType')
       .populate('category', 'name')
       .populate('region', 'name')
       .sort(sortOption)
@@ -75,7 +75,7 @@ exports.getProducts = async (req, res) => {
 exports.getProduct = async (req, res) => {
   try {
     const product = await Product.findById(req.params.id)
-      .populate('seller', 'firstName lastName sellerInfo')
+      .populate('seller', 'firstName lastName sellerInfo.businessName sellerInfo.rating sellerInfo.saleType')
       .populate('category', 'name')
       .populate('region', 'name');
 

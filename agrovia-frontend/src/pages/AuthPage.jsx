@@ -21,7 +21,7 @@ const registerSchema = z.object({
 });
 
 const initialLogin = { email: '', password: '' };
-const initialRegister = { firstName: '', lastName: '', email: '', phone: '', password: '', role: 'buyer', region: '' };
+const initialRegister = { firstName: '', lastName: '', email: '', phone: '', password: '', role: 'buyer', region: '', sellerSaleType: 'both' };
 
 export default function AuthPage() {
   const [mode, setMode] = useState('login');
@@ -83,8 +83,11 @@ export default function AuthPage() {
       return;
     }
 
-    const { region, ...rest } = registerForm;
+    const { region, sellerSaleType, ...rest } = registerForm;
     const payload = { ...rest, address: { region } };
+    if (rest.role === 'seller') {
+      payload.sellerInfo = { saleType: sellerSaleType };
+    }
 
     registerMutation.mutate(payload);
   };
@@ -114,10 +117,21 @@ export default function AuthPage() {
               <input className="input-shell sm:col-span-2" placeholder="Telefon" value={registerForm.phone} onChange={(event) => setRegisterForm((current) => ({ ...current, phone: event.target.value }))} />
               <input className="input-shell sm:col-span-2" type="password" placeholder="Şifrə" value={registerForm.password} onChange={(event) => setRegisterForm((current) => ({ ...current, password: event.target.value }))} />
               <select className="input-shell sm:col-span-2" value={registerForm.role} onChange={(event) => setRegisterForm((current) => ({ ...current, role: event.target.value }))}>
-                <option value="buyer">Buyer</option>
-                <option value="seller">Seller</option>
-                <option value="courier">Courier</option>
+                <option value="buyer">Alıcı (buyer)</option>
+                <option value="seller">Satıcı (seller)</option>
+                <option value="courier">Kuryer (courier)</option>
               </select>
+              {registerForm.role === 'seller' ? (
+                <select
+                  className="input-shell sm:col-span-2"
+                  value={registerForm.sellerSaleType}
+                  onChange={(event) => setRegisterForm((current) => ({ ...current, sellerSaleType: event.target.value }))}
+                >
+                  <option value="both">Topdan və pərakəndə</option>
+                  <option value="retail">Pərakəndə</option>
+                  <option value="wholesale">Topdan</option>
+                </select>
+              ) : null}
               <select
                 className="input-shell sm:col-span-2"
                 value={registerForm.region}

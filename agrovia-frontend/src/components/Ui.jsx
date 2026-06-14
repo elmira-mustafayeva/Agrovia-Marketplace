@@ -2,6 +2,12 @@ import { motion } from 'framer-motion';
 import { ArrowRight, BadgeCheck, Clock3, Leaf, PackageSearch, Sprout, Truck } from 'lucide-react';
 import { formatDate, formatPrice, getProductImage, roleLabel } from '../lib/format';
 
+const SALE_TYPE_LABELS = {
+  retail: 'Pərakəndə',
+  wholesale: 'Topdan',
+  both: 'Topdan və pərakəndə'
+};
+
 export const SectionTitle = ({ eyebrow, title, description, action }) => (
   <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
     <div className="max-w-2xl">
@@ -81,6 +87,11 @@ export const ProductCard = ({ product, onAddToCart, onAddToWishlist, onView }) =
           <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1">{product?.category?.name || 'Kateqoriya yoxdur'}</span>
           <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1">{product?.region?.name || 'Region yoxdur'}</span>
           <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1">{product?.seller?.sellerInfo?.businessName || product?.seller?.firstName || 'Satıcı'}</span>
+          {(product?.seller?.sellerInfo?.saleType || product?.saleType) ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-forest">
+              {SALE_TYPE_LABELS[product?.seller?.sellerInfo?.saleType || product?.saleType]}
+            </span>
+          ) : null}
         </div>
         <div className="grid grid-cols-2 gap-3">
           <button type="button" onClick={onAddToWishlist} className="btn-secondary text-xs">

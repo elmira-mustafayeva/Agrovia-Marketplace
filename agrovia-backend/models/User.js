@@ -74,6 +74,11 @@ const userSchema = new mongoose.Schema(
       businessName: String,
       businessDescription: String,
       taxNumber: String,
+      saleType: {
+        type: String,
+        enum: ['retail', 'wholesale', 'both'],
+        default: 'both'
+      },
       isVerified: {
         type: Boolean,
         default: false

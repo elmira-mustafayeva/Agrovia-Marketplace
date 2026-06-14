@@ -35,5 +35,7 @@ export const api = {
   courierOrders: () => http.get('/courier/deliveries').then(unwrap),
   adminDashboard: () => http.get('/admin/dashboard').then(unwrap),
   adminUsers: () => http.get('/admin/users').then(unwrap),
-  adminOrders: () => http.get('/admin/orders').then(unwrap)
+  adminOrders: () => http.get('/admin/orders').then(unwrap),
+  adminPendingProducts: () => http.get('/admin/products/pending').then(unwrap),
+  approveProduct: (id, payload) => http.put(`/admin/products/${id}/approve`, payload).then(unwrap)
 };

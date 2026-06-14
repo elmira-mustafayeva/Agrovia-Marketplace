@@ -31,6 +31,7 @@ exports.getDashboard = asyncHandler(async (req, res) => {
       businessName: user.sellerInfo?.businessName,
       isVerified: user.sellerInfo?.isVerified,
       rating: user.sellerInfo?.rating,
+      saleType: user.sellerInfo?.saleType || 'both',
       totalProducts,
       totalOrders,
       pendingOrders,
@@ -72,17 +73,21 @@ exports.getSellerOrders = asyncHandler(async (req, res) => {
 // @route   PUT /api/seller/profile
 // @access  Private (Seller)
 exports.updateSellerProfile = asyncHandler(async (req, res) => {
-  const { businessName, businessDescription, taxNumber } = req.body;
+  const { businessName, businessDescription, taxNumber, saleType } = req.body;
+
+  const updateFields = {
+    'sellerInfo.businessName': businessName,
+    'sellerInfo.businessDescription': businessDescription,
+    'sellerInfo.taxNumber': taxNumber
+  };
+
+  if (saleType && ['retail', 'wholesale', 'both'].includes(saleType)) {
+    updateFields['sellerInfo.saleType'] = saleType;
+  }
 
   const user = await User.findByIdAndUpdate(
     req.user.id,
-    {
-      $set: {
-        'sellerInfo.businessName': businessName,
-        'sellerInfo.businessDescription': businessDescription,
-        'sellerInfo.taxNumber': taxNumber
-      }
-    },
+    { $set: updateFields },
     { new: true, runValidators: true }
   );
 
