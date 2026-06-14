@@ -1,6 +1,13 @@
 const Wishlist = require('../models/Wishlist');
 const Product = require('../models/Product');
 
+const getDiscountedPrice = (product) => {
+  if (product.discount?.percentage > 0) {
+    return Math.round((product.price - product.price * product.discount.percentage / 100) * 100) / 100;
+  }
+  return product.price;
+};
+
 // İstək siyahısını gətir
 exports.getWishlist = async (req, res) => {
   try {
@@ -157,14 +164,18 @@ exports.moveToCart = async (req, res) => {
     );
 
     if (existingItem) {
-      existingItem.quantity += 1;
-    } else {
-      cart.items.push({
-        product: productId,
-        quantity: product.minOrderQuantity,
-        price: product.price
+      return res.status(409).json({
+        success: false,
+        alreadyInCart: true,
+        message: 'Bu məhsul artıq səbətdədir. Miqdarı səbətdə dəyişə bilərsiniz.'
       });
     }
+
+    cart.items.push({
+      product: productId,
+      quantity: product.minOrderQuantity || 1,
+      price: getDiscountedPrice(product)
+    });
 
     await cart.save();
 

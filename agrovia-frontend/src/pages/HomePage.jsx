@@ -1,8 +1,11 @@
-import { useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { useMemo, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useSelector } from 'react-redux';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { ArrowRight, Leaf, Package, Truck, Shield, Sparkles, MapPin, Star } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { useCategories, useProducts, useRegions } from '../hooks/useAgroviaData';
+import { api } from '../api/agroviaApi';
+import { useCategories, useProducts, useRegions, useWishlist } from '../hooks/useAgroviaData';
 import { EmptyState, LoadingGrid, MiniInfo, ProductCard, SectionTitle, StatCard } from '../components/Ui';
 
 const featureStats = [
@@ -12,6 +15,20 @@ const featureStats = [
 ];
 
 export default function HomePage() {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { token, user } = useSelector((state) => state.auth);
+  const [roleWarning, setRoleWarning] = useState(false);
+  const [homeToast, setHomeToast] = useState({ message: '', type: '' });
+
+  const showToast = (message, type = 'success') => {
+    setHomeToast({ message, type });
+    setTimeout(() => setHomeToast({ message: '', type: '' }), 3000);
+  };
+
+  const isBuyer = user?.role === 'buyer';
+  const wishlistQuery = useWishlist(!!token && isBuyer);
+
   const categoriesQuery = useCategories();
   const regionsQuery = useRegions();
   const productsQuery = useProducts({ limit: 8, sort: 'newest', status: 'active' });
@@ -19,6 +36,57 @@ export default function HomePage() {
   const categories = categoriesQuery.data || [];
   const regions = regionsQuery.data || [];
   const products = productsQuery.data || [];
+
+  const addToCartMutation = useMutation({
+    mutationFn: api.addToCart,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cart'] });
+      showToast('Məhsul səbətə əlavə edildi.');
+    },
+    onError: (err) => {
+      const type = err.response?.status === 409 ? 'info' : 'error';
+      showToast(err.response?.data?.message || 'Səbətə əlavə edilmədi.', type);
+    }
+  });
+
+  const addToWishlistMutation = useMutation({
+    mutationFn: api.addToWishlist,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['wishlist'] });
+      showToast('Məhsul wishlist-ə əlavə edildi.');
+    },
+    onError: (err) => {
+      showToast(err.response?.data?.message || 'Wishlist-ə əlavə edilmədi.', 'error');
+    }
+  });
+
+  const removeFromWishlistMutation = useMutation({
+    mutationFn: api.removeFromWishlist,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['wishlist'] });
+      showToast('Məhsul wishlist-dən silindi.');
+    },
+    onError: (err) => {
+      showToast(err.response?.data?.message || 'Wishlist-dən silinmədi.', 'error');
+    }
+  });
+
+  const handleAddToCart = (product) => {
+    if (!token || !user) { navigate('/auth'); return; }
+    if (user.role !== 'buyer') { setRoleWarning(true); return; }
+    addToCartMutation.mutate({ productId: product._id, quantity: product.minOrderQuantity || 1 });
+  };
+
+  const handleWishlistToggle = (product) => {
+    if (!token || !user) { navigate('/auth'); return; }
+    if (user.role !== 'buyer') { setRoleWarning(true); return; }
+    const alreadyIn = wishlistQuery.data?.items?.some((item) => item.product?._id === product._id);
+    if (alreadyIn) {
+      removeFromWishlistMutation.mutate(product._id);
+    } else {
+      addToWishlistMutation.mutate({ productId: product._id });
+    }
+  };
 
   const highlights = useMemo(() => [
     { label: 'Kateqoriyalar', value: categories.length || 0 },
@@ -28,6 +96,13 @@ export default function HomePage() {
 
   return (
     <>
+      {/* Fixed-bottom toast — visible even when scrolled past the banner position */}
+      {homeToast.message ? (
+        <div className={`fixed bottom-16 left-1/2 z-[9999] -translate-x-1/2 rounded-2xl border px-6 py-3 text-sm font-medium shadow-soft ${homeToast.type === 'error' ? 'border-red-200 bg-red-50 text-red-700' : homeToast.type === 'info' ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}>
+          {homeToast.message}
+        </div>
+      ) : null}
+
       <section className="bg-hero-radial text-white">
         <div className="section-shell grid gap-10 py-16 lg:grid-cols-[1.25fr_0.95fr] lg:py-24">
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.55 }}>
@@ -103,21 +178,35 @@ export default function HomePage() {
           description="Bu grid `/api/products` nəticəsinə görə dinamik şəkildə qurulur."
           action={<Link to="/shop" className="btn-primary">Bütün məhsullar <ArrowRight className="h-4 w-4" /></Link>}
         />
+        {roleWarning ? (
+          <div className="mb-4 flex items-center justify-between rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+            <span>Səbətə / wishlist-ə əlavə etmək yalnız alıcı hesabları üçün mümkündür.</span>
+            <button type="button" className="ml-4 underline" onClick={() => setRoleWarning(false)}>Bağla</button>
+          </div>
+        ) : null}
         {productsQuery.isLoading ? (
           <LoadingGrid />
         ) : products.length === 0 ? (
           <EmptyState title="Məhsul tapılmadı" description="Filterlərə uyğun aktiv məhsul yoxdur." />
         ) : (
-          <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
-            {products.map((product) => (
-              <ProductCard
-                key={product._id}
-                product={product}
-                onView={() => { window.location.href = `/products/${product._id}`; }}
-                onAddToCart={() => { window.location.href = '/auth'; }}
-                onAddToWishlist={() => { window.location.href = '/auth'; }}
-              />
-            ))}
+          <div className="overflow-hidden rounded-3xl border border-slate-100">
+            <div className="grid gap-5 bg-transparent p-1 sm:grid-cols-2 xl:grid-cols-3">
+              {products.map((product) => (
+                <ProductCard
+                  key={product._id}
+                  product={product}
+                  onView={() => { window.location.href = `/products/${product._id}`; }}
+                  onAddToCart={() => handleAddToCart(product)}
+                  isInWishlist={wishlistQuery.data?.items?.some((item) => item.product?._id === product._id) ?? false}
+                  onWishlistToggle={() => handleWishlistToggle(product)}
+                />
+              ))}
+            </div>
+            <div className="flex items-center justify-center border-t border-slate-100 bg-white/60 px-4 py-4">
+              <Link to="/shop" className="btn-primary">
+                Daha çox göstər <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
           </div>
         )}
       </section>

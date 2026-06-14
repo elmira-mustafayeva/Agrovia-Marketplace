@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
 import { Heart, Package, ShoppingBag, Star, Truck } from 'lucide-react';
@@ -9,12 +9,20 @@ import { EmptyState, LoadingGrid, SectionTitle, formatDate, formatPrice, getProd
 
 export default function ProductPage() {
   const { id } = useParams();
-  const { user } = useSelector((state) => state.auth);
+  const navigate = useNavigate();
+  const { user, token } = useSelector((state) => state.auth);
   const [reviewNote, setReviewNote] = useState('');
   const [reviewRating, setReviewRating] = useState(5);
   const [selectedOrderId, setSelectedOrderId] = useState('');
   const [reviewError, setReviewError] = useState('');
   const [reviewSuccess, setReviewSuccess] = useState('');
+  const [productToast, setProductToast] = useState({ message: '', type: '' });
+  const [roleWarning, setRoleWarning] = useState(false);
+
+  const showToast = (message, type = 'success') => {
+    setProductToast({ message, type });
+    setTimeout(() => setProductToast({ message: '', type: '' }), 3000);
+  };
   const queryClient = useQueryClient();
   const productQuery = useProduct(id);
   const reviewsQuery = useReviews(id);
@@ -32,8 +40,40 @@ export default function ProductPage() {
   );
   const canReview = deliveredOrdersForProduct.length > 0;
 
-  const addToCartMutation = useMutation({ mutationFn: api.addToCart, onSuccess: () => queryClient.invalidateQueries({ queryKey: ['cart'] }) });
-  const addToWishlistMutation = useMutation({ mutationFn: api.addToWishlist, onSuccess: () => queryClient.invalidateQueries({ queryKey: ['wishlist'] }) });
+  const addToCartMutation = useMutation({
+    mutationFn: api.addToCart,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['cart'] });
+      showToast('Məhsul səbətə əlavə edildi.');
+    },
+    onError: (err) => {
+      const type = err.response?.status === 409 ? 'info' : 'error';
+      showToast(err.response?.data?.message || 'Səbətə əlavə edilmədi.', type);
+    }
+  });
+
+  const addToWishlistMutation = useMutation({
+    mutationFn: api.addToWishlist,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['wishlist'] });
+      showToast('Məhsul wishlist-ə əlavə edildi.');
+    },
+    onError: (err) => {
+      showToast(err.response?.data?.message || 'Wishlist-ə əlavə edilmədi.', 'error');
+    }
+  });
+
+  const handleAddToCart = () => {
+    if (!token || !user) { navigate('/auth'); return; }
+    if (user.role !== 'buyer') { setRoleWarning(true); return; }
+    addToCartMutation.mutate({ productId: product._id, quantity: product.minOrderQuantity || 1 });
+  };
+
+  const handleAddToWishlist = () => {
+    if (!token || !user) { navigate('/auth'); return; }
+    if (user.role !== 'buyer') { setRoleWarning(true); return; }
+    addToWishlistMutation.mutate({ productId: product._id });
+  };
 
   const addReviewMutation = useMutation({
     mutationFn: api.addReview,
@@ -82,7 +122,14 @@ export default function ProductPage() {
   const mainPrice = product.discount?.percentage > 0 ? product.discountedPrice || product.price : product.price;
 
   return (
-    <section className="section-shell py-10">
+    <>
+      {/* Fixed-bottom toast */}
+      {productToast.message ? (
+        <div className={`fixed bottom-16 left-1/2 z-[9999] -translate-x-1/2 rounded-2xl border px-6 py-3 text-sm font-medium shadow-soft ${productToast.type === 'error' ? 'border-red-200 bg-red-50 text-red-700' : productToast.type === 'info' ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}>
+          {productToast.message}
+        </div>
+      ) : null}
+      <section className="section-shell py-10">
       <SectionTitle
         eyebrow="Məhsul detalı"
         title={product.name}
@@ -110,12 +157,18 @@ export default function ProductPage() {
             <p className="mt-4 text-sm leading-7 text-slate-600">{product.description}</p>
           </div>
 
+          {roleWarning ? (
+            <div className="flex items-center justify-between rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              <span>Səbətə yalnız alıcı hesabı ilə əlavə etmək olar.</span>
+              <button type="button" className="ml-4 underline" onClick={() => setRoleWarning(false)}>Bağla</button>
+            </div>
+          ) : null}
           <div className="grid gap-3 sm:grid-cols-2">
-            <button type="button" className="btn-primary" onClick={() => addToCartMutation.mutate({ productId: product._id, quantity: product.minOrderQuantity || 1 })}>
-              <ShoppingBag className="h-4 w-4" />Səbətə at
+            <button type="button" className="btn-primary" onClick={handleAddToCart} disabled={addToCartMutation.isPending}>
+              <ShoppingBag className="h-4 w-4" />{addToCartMutation.isPending ? 'Əlavə edilir...' : 'Səbətə at'}
             </button>
-            <button type="button" className="btn-secondary" onClick={() => addToWishlistMutation.mutate({ productId: product._id })}>
-              <Heart className="h-4 w-4" />Wishlist
+            <button type="button" className="btn-secondary" onClick={handleAddToWishlist} disabled={addToWishlistMutation.isPending}>
+              <Heart className="h-4 w-4" />{addToWishlistMutation.isPending ? 'Əlavə edilir...' : 'Wishlist'}
             </button>
           </div>
 
@@ -220,5 +273,6 @@ export default function ProductPage() {
         </div>
       </div>
     </section>
+    </>
   );
 }

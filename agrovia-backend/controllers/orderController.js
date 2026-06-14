@@ -32,7 +32,7 @@ exports.createOrder = asyncHandler(async (req, res) => {
       throw new ApiError(400, `${product.name} üçün stokda kifayət qədər məhsul yoxdur`);
     }
 
-    const totalPrice = product.price * item.quantity;
+    const totalPrice = item.price * item.quantity;
     subtotal += totalPrice;
 
     orderItems.push({
@@ -40,7 +40,7 @@ exports.createOrder = asyncHandler(async (req, res) => {
       seller: product.seller,
       name: product.name,
       quantity: item.quantity,
-      price: product.price,
+      price: item.price,
       unit: product.unit,
       totalPrice
     });

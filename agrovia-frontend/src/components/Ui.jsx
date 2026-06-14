@@ -1,6 +1,17 @@
 import { motion } from 'framer-motion';
-import { ArrowRight, BadgeCheck, Clock3, Leaf, PackageSearch, Sprout, Truck } from 'lucide-react';
+import { ArrowRight, BadgeCheck, Clock3, Heart, Leaf, PackageSearch, Sprout, Truck } from 'lucide-react';
 import { formatDate, formatPrice, getProductImage, roleLabel } from '../lib/format';
+
+export const UNIT_LABELS = {
+  kg: 'kq',
+  gram: 'qram',
+  liter: 'litr',
+  piece: 'ədəd',
+  bottle: 'şüşə',
+  box: 'qutu',
+  bag: 'kisə',
+  ton: 'ton'
+};
 
 const SALE_TYPE_LABELS = {
   retail: 'Pərakəndə',
@@ -56,7 +67,7 @@ export const StatCard = ({ label, value, helper, icon: Icon = Leaf, accent = 'em
   </div>
 );
 
-export const ProductCard = ({ product, onAddToCart, onAddToWishlist, onView }) => {
+export const ProductCard = ({ product, onAddToCart, onWishlistToggle, isInWishlist, onView }) => {
   const price = product?.discount?.percentage > 0 && product.discountedPrice ? product.discountedPrice : product?.price;
   const discount = product?.discount?.percentage || 0;
   const image = getProductImage(product);
@@ -66,20 +77,32 @@ export const ProductCard = ({ product, onAddToCart, onAddToWishlist, onView }) =
       whileHover={{ y: -6 }}
       className="group overflow-hidden rounded-[28px] border border-white/70 bg-white shadow-soft transition"
     >
-      <button type="button" onClick={onView} className="block w-full text-left">
-        <div className="relative aspect-[4/3] overflow-hidden">
+      <div className="relative aspect-[4/3] overflow-hidden">
+        <button type="button" onClick={onView} className="block h-full w-full">
           <img src={image} alt={product?.name} className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
-          <div className="absolute left-4 top-4 flex gap-2">
-            {discount > 0 ? <span className="chip bg-amber-100 text-amber-800">-{discount}%</span> : null}
-            <span className="chip bg-white/90 text-forest">{product?.unit}</span>
+        </button>
+        {discount > 0 ? (
+          <div className="pointer-events-none absolute left-4 top-4">
+            <span className="chip bg-amber-100 text-amber-800">-{discount}%</span>
           </div>
-        </div>
-      </button>
+        ) : null}
+        <button
+          type="button"
+          onClick={onWishlistToggle}
+          className="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 shadow-sm transition hover:bg-white"
+          title={isInWishlist ? 'Wishlist-dən çıxar' : 'Wishlist-ə əlavə et'}
+        >
+          <Heart className={`h-4 w-4 transition ${isInWishlist ? 'fill-rose-500 text-rose-500' : 'text-slate-400'}`} />
+        </button>
+      </div>
       <div className="space-y-4 p-5">
         <div>
           <div className="flex items-start justify-between gap-3">
             <h3 className="text-lg font-semibold text-ink line-clamp-2">{product?.name}</h3>
-            <div className="text-right text-sm font-semibold text-forest">{formatPrice(price)}</div>
+            <div className="shrink-0 text-right">
+              <span className="text-sm font-semibold text-forest">{formatPrice(price)}</span>
+              {product?.unit ? <span className="text-xs text-slate-500"> / {UNIT_LABELS[product.unit] || product.unit}</span> : null}
+            </div>
           </div>
           <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-600">{product?.description}</p>
         </div>
@@ -92,15 +115,15 @@ export const ProductCard = ({ product, onAddToCart, onAddToWishlist, onView }) =
               {SALE_TYPE_LABELS[product?.seller?.sellerInfo?.saleType || product?.saleType]}
             </span>
           ) : null}
+          {product?.minOrderQuantity > 1 ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-3 py-1 text-sky-700">
+              Minimum sifariş: {product.minOrderQuantity} {UNIT_LABELS[product?.unit] || product?.unit}
+            </span>
+          ) : null}
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          <button type="button" onClick={onAddToWishlist} className="btn-secondary text-xs">
-            İstək siyahısı
-          </button>
-          <button type="button" onClick={onAddToCart} className="btn-primary text-xs">
-            Səbətə əlavə et
-          </button>
-        </div>
+        <button type="button" onClick={onAddToCart} className="btn-primary w-full text-xs">
+          Səbətə əlavə et
+        </button>
       </div>
     </motion.article>
   );

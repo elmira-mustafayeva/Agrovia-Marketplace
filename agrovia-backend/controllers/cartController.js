@@ -1,13 +1,26 @@
 const Cart = require('../models/Cart');
 const Product = require('../models/Product');
 
+const UNIT_LABELS = {
+  kg: 'kq', gram: 'qram', liter: 'litr', piece: 'ədəd',
+  bottle: 'şüşə', box: 'qutu', bag: 'kisə', ton: 'ton'
+};
+const unitLabel = (unit) => UNIT_LABELS[unit] || unit;
+
+const getDiscountedPrice = (product) => {
+  if (product.discount?.percentage > 0) {
+    return Math.round((product.price - product.price * product.discount.percentage / 100) * 100) / 100;
+  }
+  return product.price;
+};
+
 // Səbəti gətir
 exports.getCart = async (req, res) => {
   try {
     let cart = await Cart.findOne({ user: req.user.id })
       .populate({
         path: 'items.product',
-        select: 'name price unit images stockQuantity status seller',
+        select: 'name price unit images stockQuantity status minOrderQuantity seller',
         populate: { path: 'seller', select: 'firstName lastName' }
       });
 
@@ -60,7 +73,7 @@ exports.addToCart = async (req, res) => {
     if (quantity < product.minOrderQuantity) {
       return res.status(400).json({
         success: false,
-        message: `Minimum sifariş miqdarı: ${product.minOrderQuantity} ${product.unit}`
+        message: `Bu məhsuldan minimum ${product.minOrderQuantity} ${unitLabel(product.unit)} sifariş etməlisiniz.`
       });
     }
 
@@ -77,31 +90,25 @@ exports.addToCart = async (req, res) => {
     );
 
     if (existingItem) {
-      const newQuantity = existingItem.quantity + Number(quantity);
-      
-      if (newQuantity > product.stockQuantity) {
-        return res.status(400).json({
-          success: false,
-          message: 'Stokda kifayət qədər məhsul yoxdur'
-        });
-      }
-
-      existingItem.quantity = newQuantity;
-      existingItem.price = product.price; // Qiyməti yenilə
-    } else {
-      cart.items.push({
-        product: productId,
-        quantity: Number(quantity),
-        price: product.price
+      return res.status(409).json({
+        success: false,
+        alreadyInCart: true,
+        message: 'Bu məhsul artıq səbətdədir. Miqdarı səbətdə dəyişə bilərsiniz.'
       });
     }
+
+    cart.items.push({
+      product: productId,
+      quantity: Number(quantity),
+      price: getDiscountedPrice(product)
+    });
 
     await cart.save();
 
     // Populate ilə qaytar
     cart = await Cart.findById(cart._id).populate({
       path: 'items.product',
-      select: 'name price unit images stockQuantity status'
+      select: 'name price unit images stockQuantity status minOrderQuantity'
     });
 
     res.status(200).json({
@@ -155,7 +162,7 @@ exports.updateCartItem = async (req, res) => {
     if (quantity < product.minOrderQuantity) {
       return res.status(400).json({
         success: false,
-        message: `Minimum sifariş miqdarı: ${product.minOrderQuantity} ${product.unit}`
+        message: `Bu məhsuldan minimum ${product.minOrderQuantity} ${unitLabel(product.unit)} sifariş etməlisiniz.`
       });
     }
 
@@ -164,14 +171,14 @@ exports.updateCartItem = async (req, res) => {
       cart.items = cart.items.filter(i => i._id.toString() !== itemId);
     } else {
       item.quantity = Number(quantity);
-      item.price = product.price;
+      item.price = getDiscountedPrice(product);
     }
 
     await cart.save();
 
     cart = await Cart.findById(cart._id).populate({
       path: 'items.product',
-      select: 'name price unit images stockQuantity status'
+      select: 'name price unit images stockQuantity status minOrderQuantity'
     });
 
     res.status(200).json({
@@ -207,7 +214,7 @@ exports.removeFromCart = async (req, res) => {
 
     cart = await Cart.findById(cart._id).populate({
       path: 'items.product',
-      select: 'name price unit images stockQuantity status'
+      select: 'name price unit images stockQuantity status minOrderQuantity'
     });
 
     res.status(200).json({

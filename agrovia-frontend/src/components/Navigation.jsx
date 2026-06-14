@@ -2,14 +2,21 @@ import { useDispatch, useSelector } from 'react-redux';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
 import { Menu, ShoppingBag, LogOut, Sprout, Heart, UserCircle2, LayoutDashboard } from 'lucide-react';
 import { clearCredentials } from '../features/auth/authSlice';
+import { useCart, useWishlist } from '../hooks/useAgroviaData';
 
 const navClass = ({ isActive }) =>
   `rounded-full px-4 py-2 text-sm font-medium transition ${isActive ? 'bg-forest text-white shadow-lift' : 'text-slate-700 hover:bg-white hover:text-forest'}`;
 
 export default function Navigation({ onMenuToggle }) {
-  const { user } = useSelector((state) => state.auth);
+  const { user, token } = useSelector((state) => state.auth);
   const dispatch = useDispatch();
   const navigate = useNavigate();
+
+  const isBuyer = user?.role === 'buyer';
+  const cartQuery = useCart(!!token && isBuyer);
+  const wishlistQuery = useWishlist(!!token && isBuyer);
+  const cartCount = cartQuery.data?.items?.length ?? 0;
+  const wishlistCount = wishlistQuery.data?.items?.length ?? 0;
 
   const handleLogout = () => {
     dispatch(clearCredentials());
@@ -36,17 +43,26 @@ export default function Navigation({ onMenuToggle }) {
         <nav className="hidden items-center gap-2 lg:flex">
           <NavLink to="/" className={navClass}>Ana səhifə</NavLink>
           <NavLink to="/shop" className={navClass}>Mağaza</NavLink>
-          <NavLink to="/delivery" className={navClass}>Çatdırılma</NavLink>
           <NavLink to="/orders" className={navClass}>Sifarişlər</NavLink>
           <NavLink to="/dashboard" className={navClass}>Panel</NavLink>
         </nav>
 
         <div className="hidden items-center gap-2 lg:flex">
           <NavLink to="/wishlist" className={navClass}>
-            <span className="inline-flex items-center gap-2"><Heart className="h-4 w-4" />Wishlist</span>
+            <span className="relative inline-flex items-center gap-2">
+              <Heart className="h-4 w-4" />Wishlist
+              {isBuyer && wishlistCount > 0 ? (
+                <span className="absolute -right-3 -top-2 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white leading-none">{wishlistCount}</span>
+              ) : null}
+            </span>
           </NavLink>
           <NavLink to="/cart" className={navClass}>
-            <span className="inline-flex items-center gap-2"><ShoppingBag className="h-4 w-4" />Cart</span>
+            <span className="relative inline-flex items-center gap-2">
+              <ShoppingBag className="h-4 w-4" />Səbət
+              {isBuyer && cartCount > 0 ? (
+                <span className="absolute -right-3 -top-2 flex h-4 w-4 items-center justify-center rounded-full bg-forest text-[10px] font-bold text-white leading-none">{cartCount}</span>
+              ) : null}
+            </span>
           </NavLink>
           {user ? (
             <div className="flex items-center gap-2">
