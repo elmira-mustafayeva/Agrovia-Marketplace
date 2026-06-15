@@ -37,6 +37,17 @@ export const api = {
   createSellerProduct: (formData) => http.post('/products', formData, {
     headers: { 'Content-Type': 'multipart/form-data' }
   }).then(unwrap),
+  updateProduct: (id, formData) => http.put(`/products/${id}`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' }
+  }).then(unwrap),
+  deleteProduct: (id) => http.delete(`/products/${id}`).then(unwrap),
+  getOrder: (id) => http.get(`/orders/${id}`).then(unwrap),
+  updateSellerProfile: (payload) => http.put('/seller/profile', payload).then(unwrap),
+  updateAuthProfile: (payload) => http.put('/auth/profile', payload).then(unwrap),
+  changePassword: (payload) => http.put('/auth/change-password', payload).then(unwrap),
+  getNotifications: (params = {}) => http.get('/notifications', { params }).then(unwrap),
+  markNotificationRead: (id) => http.put(`/notifications/${id}/read`).then(unwrap),
+  markAllNotificationsRead: () => http.put('/notifications/read-all').then(unwrap),
   courierDashboard: () => http.get('/courier/dashboard').then(unwrap),
   courierOrders: () => http.get('/courier/deliveries').then(unwrap),
   adminDashboard: () => http.get('/admin/dashboard').then(unwrap),

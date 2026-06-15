@@ -28,6 +28,10 @@ exports.register = asyncHandler(async (req, res) => {
     role, address, region, sellerInfo, courierInfo
   } = req.body;
 
+  if (role === 'admin') {
+    throw new ApiError(403, 'Admin accounts cannot be created through public registration');
+  }
+
   const existingUser = await User.findOne({ $or: [{ email }, { phone }] });
   if (existingUser) {
     throw new ApiError(400, 'Bu email və ya telefon nömrəsi artıq qeydiyyatdan keçib');

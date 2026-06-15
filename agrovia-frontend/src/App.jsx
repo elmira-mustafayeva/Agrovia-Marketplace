@@ -1,4 +1,5 @@
 import { Routes, Route } from 'react-router-dom';
+import { useSelector } from 'react-redux';
 import MainLayout from './layouts/MainLayout';
 import DashboardLayout from './layouts/DashboardLayout';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -14,7 +15,18 @@ import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import VerifyEmailPage from './pages/VerifyEmailPage';
 import DashboardPage from './pages/DashboardPage';
+import SellerDashboard from './pages/SellerDashboard';
 import NotFoundPage from './pages/NotFoundPage';
+
+function DashboardRoute() {
+  const { user } = useSelector((state) => state.auth);
+  if (user?.role === 'seller') return <SellerDashboard />;
+  return (
+    <DashboardLayout title="İdarəetmə paneli" subtitle="Roluna uyğun dinamik məlumatlara bax.">
+      <DashboardPage />
+    </DashboardLayout>
+  );
+}
 
 export default function App() {
   return (
@@ -56,9 +68,7 @@ export default function App() {
           path="/dashboard"
           element={
             <ProtectedRoute>
-              <DashboardLayout title="İdarəetmə paneli" subtitle="Roluna uyğun dinamik məlumatlara bax." >
-                <DashboardPage />
-              </DashboardLayout>
+              <DashboardRoute />
             </ProtectedRoute>
           }
         />

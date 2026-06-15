@@ -36,8 +36,8 @@ exports.validateRegister = (req, res, next) => {
   if (isEmpty(password) || password.length < 8) {
     errors.push('Şifrə minimum 8 simvol olmalıdır');
   }
-  if (!['admin', 'seller', 'buyer', 'courier'].includes(role)) {
-    errors.push('Düzgün rol seçin');
+  if (!['buyer', 'seller', 'courier'].includes(role)) {
+    errors.push('Admin hesabları ictimai qeydiyyatdan yaradıla bilməz');
   }
 
   const resolvedRegion = region || address?.region;
