@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api/agroviaApi';
 
 export const useCategories = () => useQuery({
@@ -46,6 +46,24 @@ export const useOrders = (enabled = true) => useQuery({
   enabled,
   select: (data) => data.orders || []
 });
+
+export const useSellerOrders = (enabled = true) => useQuery({
+  queryKey: ['seller-orders'],
+  queryFn: api.sellerOrders,
+  enabled,
+  select: (data) => data.orders || [],
+});
+
+export const useUpdateOrderStatus = () => {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, status }) => api.updateOrderStatus(id, status),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['seller-orders'] });
+      qc.invalidateQueries({ queryKey: ['orders'] });
+    },
+  });
+};
 
 export const useReviews = (productId) => useQuery({
   queryKey: ['reviews', productId],

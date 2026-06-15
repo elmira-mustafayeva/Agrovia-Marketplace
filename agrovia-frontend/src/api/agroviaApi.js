@@ -19,6 +19,7 @@ export const api = {
   moveWishlistToCart: (payload) => http.post('/wishlist/move-to-cart', payload).then(unwrap),
   getMyOrders: () => http.get('/orders/my').then(unwrap),
   createOrder: (payload) => http.post('/orders', payload).then(unwrap),
+  updateOrderStatus: (id, status) => http.put(`/orders/${id}/status`, { status }).then(unwrap),
   createPaymentIntent: (payload) => http.post('/payments/create-intent', payload).then(unwrap),
   confirmPayment: (payload) => http.post('/payments/confirm', payload).then(unwrap),
   getReviews: (productId) => http.get(`/reviews/product/${productId}`).then(unwrap),

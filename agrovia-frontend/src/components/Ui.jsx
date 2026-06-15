@@ -13,6 +13,50 @@ export const UNIT_LABELS = {
   ton: 'ton'
 };
 
+export const ORDER_STATUS_LABELS = {
+  pending:          { label: 'Gözləyir',        color: 'amber' },
+  confirmed:        { label: 'Təsdiqləndi',      color: 'blue' },
+  preparing:        { label: 'Hazırlanır',       color: 'indigo' },
+  ready:            { label: 'Hazırdır',         color: 'violet' },
+  out_for_delivery: { label: 'Çatdırılır',       color: 'sky' },
+  delivered:        { label: 'Çatdırıldı',       color: 'forest' },
+  cancelled:        { label: 'Ləğv edildi',      color: 'rose' },
+  returned:         { label: 'Geri qaytarıldı',  color: 'slate' },
+};
+
+export const PAYMENT_STATUS_LABELS = {
+  pending:  { label: 'Ödəniş gözləyir', color: 'amber' },
+  paid:     { label: 'Ödənilib',        color: 'forest' },
+  failed:   { label: 'Ödəniş alınmadı', color: 'rose' },
+  refunded: { label: 'Geri qaytarıldı', color: 'slate' },
+};
+
+export const PAYMENT_METHOD_LABELS = {
+  card:   'Kartla ödəniş',
+  cash:   'Nağd ödəniş',
+  online: 'Onlayn ödəniş',
+};
+
+const STATUS_COLOR_MAP = {
+  amber:  'bg-amber-100 text-amber-700',
+  blue:   'bg-blue-100 text-blue-700',
+  indigo: 'bg-indigo-100 text-indigo-700',
+  violet: 'bg-violet-100 text-violet-700',
+  sky:    'bg-sky-100 text-sky-700',
+  forest: 'bg-emerald-100 text-emerald-700',
+  rose:   'bg-rose-100 text-rose-700',
+  slate:  'bg-slate-100 text-slate-500',
+};
+
+export function StatusBadge({ status, map }) {
+  const entry = map?.[status] ?? { label: status, color: 'slate' };
+  return (
+    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_COLOR_MAP[entry.color] ?? STATUS_COLOR_MAP.slate}`}>
+      {entry.label}
+    </span>
+  );
+}
+
 export const getDiscountedPrice = (product) => {
   if (!product) return 0;
   const pct = product?.discount?.percentage;

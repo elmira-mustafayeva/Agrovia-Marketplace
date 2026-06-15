@@ -2,8 +2,23 @@ import { useState } from 'react';
 import { useSelector } from 'react-redux';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api/agroviaApi';
-import { ActivityRow, EmptyState, LoadingGrid, SectionTitle, StatCard, formatPrice, roleLabel } from '../components/Ui';
-import { ChartColumn, PackageSearch, Plus, Truck, Users, Wallet } from 'lucide-react';
+import {
+  ActivityRow,
+  EmptyState,
+  LoadingGrid,
+  ORDER_STATUS_LABELS,
+  PAYMENT_METHOD_LABELS,
+  PAYMENT_STATUS_LABELS,
+  SectionTitle,
+  StatCard,
+  StatusBadge,
+  UNIT_LABELS,
+  formatDate,
+  formatPrice,
+  roleLabel,
+} from '../components/Ui';
+import { AlertTriangle, ChartColumn, PackageSearch, Plus, Truck, Users, Wallet } from 'lucide-react';
+import { useSellerOrders, useUpdateOrderStatus } from '../hooks/useAgroviaData';
 
 const dashboardQueries = {
   seller: api.sellerDashboard,
@@ -72,6 +87,10 @@ export default function DashboardPage() {
     queryFn: api.adminPendingProducts,
     enabled: role === 'admin'
   });
+
+  const sellerOrdersQuery = useSellerOrders(role === 'seller');
+  const sellerOrders = sellerOrdersQuery.data || [];
+  const updateOrderStatus = useUpdateOrderStatus();
 
   const createProductMutation = useMutation({
     mutationFn: api.createSellerProduct,
@@ -168,7 +187,6 @@ export default function DashboardPage() {
       <SectionTitle
         eyebrow="Dashboard"
         title={`${roleLabel(role)} paneli`}
-        description="Backend role endpoint-lərinə uyğun şəkildə göstərilir."
       />
       {dashboardQuery.isLoading ? (
         <LoadingGrid rows={1} />
@@ -217,9 +235,6 @@ export default function DashboardPage() {
                   ? 'Seller paneli məhsullar, sifarişlər və satış performansını göstərir.'
                   : 'Courier paneli qəbul edilmiş çatdırılmalar və availability statusunu göstərir.'}
               </p>
-              <div className="rounded-3xl bg-slate-50 p-5 text-sm leading-6 text-slate-600">
-                Backend-də `{role}` üçün xüsusi endpoint aktivdir. UI həmin endpoint-dən gələn data-nı karta çevirir.
-              </div>
             </div>
           </div>
 
@@ -454,6 +469,132 @@ export default function DashboardPage() {
                 )}
               </section>
             </div>
+          ) : null}
+
+          {role === 'seller' ? (
+            <section className="space-y-4">
+              <SectionTitle eyebrow="Sifarişlər" title="Satıcı sifarişləri" />
+              {sellerOrdersQuery.isLoading ? (
+                <LoadingGrid rows={2} />
+              ) : sellerOrders.length === 0 ? (
+                <EmptyState
+                  title="Sifariş yoxdur"
+                  description="Alıcılar sifariş verdikdən sonra burada görünəcək."
+                />
+              ) : (
+                <div className="space-y-4">
+                  {sellerOrders.map((order) => {
+                    const isCardUnpaid =
+                      order.payment?.method === 'card' && order.payment?.status !== 'paid';
+
+                    const NEXT_STATUS = {
+                      pending: { status: 'confirmed', label: 'Təsdiqlə' },
+                      confirmed: { status: 'preparing', label: 'Hazırlamağa başla' },
+                      preparing: { status: 'ready', label: 'Hazırdır' },
+                    };
+                    const next = NEXT_STATUS[order.status];
+                    const isUpdating =
+                      updateOrderStatus.isPending &&
+                      updateOrderStatus.variables?.id === order._id;
+                    const canConfirm = !(isCardUnpaid && order.status === 'pending');
+
+                    return (
+                      <div key={order._id} className="panel space-y-4">
+                        {/* Header */}
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div className="space-y-1.5">
+                            <div className="text-xs font-medium uppercase tracking-wide text-slate-400">
+                              {order.orderNumber}
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <StatusBadge status={order.status} map={ORDER_STATUS_LABELS} />
+                              <StatusBadge status={order.payment?.status} map={PAYMENT_STATUS_LABELS} />
+                              {order.payment?.method ? (
+                                <span className="text-xs text-slate-500">
+                                  {PAYMENT_METHOD_LABELS[order.payment.method] ?? order.payment.method}
+                                </span>
+                              ) : null}
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-xl font-semibold text-forest">
+                              {formatPrice(order.totalAmount)}
+                            </div>
+                            <div className="text-xs text-slate-400">{formatDate(order.createdAt)}</div>
+                          </div>
+                        </div>
+
+                        {/* Buyer info */}
+                        {order.buyer ? (
+                          <div className="rounded-2xl bg-slate-50 px-4 py-3 text-sm">
+                            <span className="font-semibold text-ink">
+                              {order.buyer.firstName} {order.buyer.lastName}
+                            </span>
+                            {order.buyer.phone ? (
+                              <span className="ml-2 text-slate-500">{order.buyer.phone}</span>
+                            ) : null}
+                          </div>
+                        ) : null}
+
+                        {/* Card payment warning */}
+                        {isCardUnpaid && order.status === 'pending' ? (
+                          <div className="flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+                            <AlertTriangle className="h-4 w-4 shrink-0" />
+                            Kart ödənişi tamamlanmadan sifariş təsdiqlənə bilməz.
+                          </div>
+                        ) : null}
+
+                        {/* Items */}
+                        <div className="divide-y divide-slate-100 rounded-2xl border border-slate-100">
+                          {order.items?.map((item) => {
+                            const unitLabel = UNIT_LABELS[item.unit] ?? item.unit;
+                            return (
+                              <div
+                                key={item._id}
+                                className="flex items-center justify-between gap-4 px-4 py-3 text-sm"
+                              >
+                                <div>
+                                  <div className="font-semibold text-ink">{item.name}</div>
+                                  <div className="mt-0.5 text-slate-500">
+                                    {item.quantity} {unitLabel} × {formatPrice(item.price)}
+                                  </div>
+                                </div>
+                                <div className="text-right font-semibold text-forest">
+                                  {formatPrice(item.totalPrice)}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Action button + backend error */}
+                        {next ? (
+                          <div className="space-y-2">
+                            {updateOrderStatus.isError &&
+                            updateOrderStatus.variables?.id === order._id ? (
+                              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+                                {updateOrderStatus.error?.response?.data?.message ||
+                                  'Xəta baş verdi. Yenidən cəhd edin.'}
+                              </div>
+                            ) : null}
+                            <button
+                              type="button"
+                              className="btn-primary text-sm"
+                              disabled={isUpdating || !canConfirm}
+                              onClick={() =>
+                                updateOrderStatus.mutate({ id: order._id, status: next.status })
+                              }
+                            >
+                              {isUpdating ? 'Yüklənir...' : next.label}
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
           ) : null}
 
           {role === 'admin' ? (

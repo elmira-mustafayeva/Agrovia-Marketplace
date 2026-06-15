@@ -169,6 +169,36 @@ exports.updateOrderStatus = asyncHandler(async (req, res) => {
     throw new ApiError(404, 'Sifariş tapılmadı');
   }
 
+  // Seller-specific guards
+  if (req.user.role === 'seller') {
+    const isSeller = order.items.some(
+      (item) => item.seller.toString() === req.user.id.toString()
+    );
+    if (!isSeller) {
+      throw new ApiError(403, 'Bu sifarişə icazəniz yoxdur.');
+    }
+
+    // Whitelist: seller may only advance through these exact transitions
+    const SELLER_TRANSITIONS = {
+      pending: 'confirmed',
+      confirmed: 'preparing',
+      preparing: 'ready',
+    };
+    const allowedTarget = SELLER_TRANSITIONS[order.status];
+    if (!allowedTarget || status !== allowedTarget) {
+      throw new ApiError(403, 'Satıcı bu status keçidini edə bilməz.');
+    }
+
+    // Card payment guard — backend source of truth
+    if (
+      status === 'confirmed' &&
+      order.payment?.method === 'card' &&
+      order.payment?.status !== 'paid'
+    ) {
+      throw new ApiError(400, 'Kart ödənişi tamamlanmadan sifariş təsdiqlənə bilməz.');
+    }
+  }
+
   // Status keçidlərini yoxla
   const validTransitions = {
     pending: ['confirmed', 'cancelled'],
