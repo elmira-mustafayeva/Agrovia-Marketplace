@@ -13,11 +13,10 @@ exports.getProducts = async (req, res) => {
       sort,
       page = 1,
       limit = 20,
-      status = 'active'
     } = req.query;
 
-    // Filter obyekti yarat
-    const filter = { status };
+    // Filter obyekti yarat — status is always 'active' for public endpoint
+    const filter = { status: 'active' };
 
     if (category) filter.category = category;
     if (region) filter.region = region;
@@ -188,8 +187,10 @@ exports.updateProduct = async (req, res) => {
 
     const allowedUpdates = [
       'name', 'description', 'price', 'unit', 'saleType', 'minOrderQuantity',
-      'stockQuantity', 'category', 'region', 'attributes', 'tags', 'discount', 'status'
+      'stockQuantity', 'category', 'region', 'attributes', 'tags', 'discount'
     ];
+    // Only admins can set status directly — sellers must go through admin approval
+    if (req.user.role === 'admin') allowedUpdates.push('status');
 
     const updates = {};
     allowedUpdates.forEach(field => {

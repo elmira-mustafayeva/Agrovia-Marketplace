@@ -188,6 +188,7 @@ orderSchema.pre("save", function (next) {
 
     this.orderNumber = `${prefix}-${timestamp}-${random}`;
   }
+  next();
 });
 
 // Auto price calculation
@@ -199,6 +200,7 @@ orderSchema.pre("save", function (next) {
 
   this.totalAmount = this.subtotal + this.deliveryFee;
 
+  next();
 });
 
 // # INDEXES
