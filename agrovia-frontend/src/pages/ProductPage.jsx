@@ -151,6 +151,9 @@ export default function ProductPage() {
               <div>
                 <div className="text-sm text-slate-500">Qiymət</div>
                 <div className="mt-1 text-4xl font-semibold text-ink">{formatPrice(mainPrice)}</div>
+                {product.discount?.percentage > 0 ? (
+                  <div className="mt-1 text-sm text-slate-400 line-through">{formatPrice(product.price)}</div>
+                ) : null}
               </div>
               {product.discount?.percentage > 0 ? <div className="rounded-2xl bg-amber-100 px-4 py-2 text-sm font-semibold text-amber-900">-{product.discount.percentage}% endirim</div> : null}
             </div>

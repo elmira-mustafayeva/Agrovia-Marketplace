@@ -34,12 +34,8 @@ export const api = {
   sellerDashboard: () => http.get('/seller/dashboard').then(unwrap),
   sellerOrders: () => http.get('/seller/orders').then(unwrap),
   sellerProducts: () => http.get('/products/my/products').then(unwrap),
-  createSellerProduct: (formData) => http.post('/products', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' }
-  }).then(unwrap),
-  updateProduct: (id, formData) => http.put(`/products/${id}`, formData, {
-    headers: { 'Content-Type': 'multipart/form-data' }
-  }).then(unwrap),
+  createSellerProduct: (formData) => http.post('/products', formData).then(unwrap),
+  updateProduct: (id, formData) => http.put(`/products/${id}`, formData).then(unwrap),
   deleteProduct: (id) => http.delete(`/products/${id}`).then(unwrap),
   getOrder: (id) => http.get(`/orders/${id}`).then(unwrap),
   updateSellerProfile: (payload) => http.put('/seller/profile', payload).then(unwrap),

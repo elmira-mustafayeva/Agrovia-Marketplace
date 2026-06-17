@@ -181,7 +181,13 @@ export default function DashboardPage() {
 
                           {approveMutation.isError ? (
                             <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
-                              Xəta baş verdi. Yenidən cəhd edin.
+                              {(() => {
+                                const d = approveMutation.error?.response?.data;
+                                const errs = d?.errors;
+                                return Array.isArray(errs) && errs.length
+                                  ? errs.join(', ')
+                                  : d?.message || 'Xəta baş verdi. Yenidən cəhd edin.';
+                              })()}
                             </div>
                           ) : null}
 
@@ -198,7 +204,7 @@ export default function DashboardPage() {
                               type="button"
                               className="btn-secondary text-sm"
                               disabled={approveMutation.isPending}
-                              onClick={() => approveMutation.mutate({ id: product._id, status: 'inactive' })}
+                              onClick={() => approveMutation.mutate({ id: product._id, status: 'rejected' })}
                             >
                               Rədd et
                             </button>

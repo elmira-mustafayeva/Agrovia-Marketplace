@@ -157,6 +157,9 @@ export const ProductCard = ({ product, onAddToCart, onWishlistToggle, isInWishli
             <div className="shrink-0 text-right">
               <span className="text-sm font-semibold text-forest">{formatPrice(price)}</span>
               {product?.unit ? <span className="text-xs text-slate-500"> / {UNIT_LABELS[product.unit] || product.unit}</span> : null}
+              {discount > 0 ? (
+                <div className="text-xs text-slate-400 line-through">{formatPrice(product.price)}</div>
+              ) : null}
             </div>
           </div>
           <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-600">{product?.description}</p>

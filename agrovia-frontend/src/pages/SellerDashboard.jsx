@@ -991,6 +991,11 @@ function AddProductForm({ categories, sellerRegion, onSuccess, onCancel }) {
       setMsg('Profilinizdə region yoxdur. Zəhmət olmasa profil bölməsindən region əlavə edin.');
       return;
     }
+    if (images.length === 0) {
+      setMsg('Ən azı bir məhsul şəkli əlavə edin.');
+      setSuccess(false);
+      return;
+    }
     const fd = new FormData();
     fd.append('name',             form.name.trim());
     fd.append('description',      form.description.trim());
