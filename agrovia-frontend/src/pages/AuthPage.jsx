@@ -21,7 +21,7 @@ const registerSchema = z.object({
 });
 
 const initialLogin = { email: '', password: '' };
-const initialRegister = { firstName: '', lastName: '', email: '', phone: '', password: '', role: 'buyer', region: '', sellerSaleType: 'both' };
+const initialRegister = { firstName: '', lastName: '', email: '', phone: '', password: '', role: 'buyer', region: '', sellerSaleType: 'both', courierRegions: [] };
 
 export default function AuthPage() {
   const [mode, setMode] = useState('login');
@@ -83,10 +83,17 @@ export default function AuthPage() {
       return;
     }
 
-    const { region, sellerSaleType, ...rest } = registerForm;
+    const { region, sellerSaleType, courierRegions, ...rest } = registerForm;
     const payload = { ...rest, address: { region } };
     if (rest.role === 'seller') {
       payload.sellerInfo = { saleType: sellerSaleType };
+    }
+    if (rest.role === 'courier') {
+      if (courierRegions.length === 0) {
+        setError('Ən azı bir xidmət regionu seçin');
+        return;
+      }
+      payload.courierInfo = { regions: courierRegions };
     }
 
     registerMutation.mutate(payload);
@@ -134,6 +141,31 @@ export default function AuthPage() {
                   <option value="retail">Pərakəndə</option>
                   <option value="wholesale">Topdan</option>
                 </select>
+              ) : null}
+              {registerForm.role === 'courier' ? (
+                <div className="sm:col-span-2">
+                  <div className="mb-2 text-sm font-medium text-slate-700">Xidmət regionları (sifariş alacağınız regionlar)</div>
+                  <div className="grid grid-cols-2 gap-2 rounded-2xl border border-slate-200 p-3">
+                    {regions.map((r) => {
+                      const checked = registerForm.courierRegions.includes(r._id);
+                      return (
+                        <label key={r._id} className="flex items-center gap-2 text-sm text-slate-600">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(event) => setRegisterForm((current) => ({
+                              ...current,
+                              courierRegions: event.target.checked
+                                ? [...current.courierRegions, r._id]
+                                : current.courierRegions.filter((id) => id !== r._id)
+                            }))}
+                          />
+                          {r.name}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
               ) : null}
               <select
                 className="input-shell sm:col-span-2"

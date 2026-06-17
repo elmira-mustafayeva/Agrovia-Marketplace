@@ -40,15 +40,27 @@ exports.getDashboard = async (req, res) => {
 exports.getAvailableOrders = async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
-    const courierRegion = user.address?.region;
+    const regions = user.courierInfo?.regions || [];
+
+    // Region seçilməyibsə — boş siyahı + frontend üçün aydın səbəb
+    if (regions.length === 0) {
+      return res.status(200).json({
+        success: true,
+        count: 0,
+        orders: [],
+        reason: 'NO_REGIONS',
+        message: 'Xidmət regionları seçilməyib. Sifarişləri görmək üçün xidmət regionlarınızı seçin.'
+      });
+    }
 
     const orders = await Order.find({
-      status: { $in: ['preparing', 'confirmed'] },
+      status: 'ready',
       courier: null,
-      ...(courierRegion && { 'deliveryAddress.region': courierRegion })
+      'deliveryAddress.region': { $in: regions }
     })
       .populate('buyer', 'firstName lastName phone')
       .populate('items.product', 'name')
+      .populate('deliveryAddress.region', 'name')
       .sort({ createdAt: 1 });
 
     res.status(200).json({
@@ -79,8 +91,23 @@ exports.acceptOrder = async (req, res) => {
       });
     }
 
+    const regions = user.courierInfo?.regions || [];
+    if (regions.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Xidmət regionları seçilməyib. Sifariş qəbul etmək üçün xidmət regionlarınızı seçin.'
+      });
+    }
+
+    // Region uyğunluğu atomik şəkildə yoxlanılır — kuryer öz regionundan kənar
+    // və ya artıq başqasına təyin olunmuş sifarişi qəbul edə bilməz
     const order = await Order.findOneAndUpdate(
-      { _id: req.params.id, courier: null, status: { $in: ['preparing', 'confirmed'] } },
+      {
+        _id: req.params.id,
+        courier: null,
+        status: 'ready',
+        'deliveryAddress.region': { $in: regions }
+      },
       {
         courier: req.user.id,
         status: 'out_for_delivery',
@@ -249,13 +276,17 @@ exports.updateDeliveryStatus = async (req, res) => {
 // @access  Private (Courier)
 exports.toggleAvailability = async (req, res) => {
   try {
-    const { isAvailable, workingHours } = req.body;
+    const { isAvailable, workingHours, regions } = req.body;
 
     const updates = {};
     if (isAvailable !== undefined) updates['courierInfo.isAvailable'] = isAvailable;
     if (workingHours) {
       updates['courierInfo.workingHours.start'] = workingHours.start;
       updates['courierInfo.workingHours.end'] = workingHours.end;
+    }
+    // Xidmət regionlarını yenilə (qeydiyyatdan sonra da dəyişdirilə bilər)
+    if (Array.isArray(regions)) {
+      updates['courierInfo.regions'] = regions;
     }
 
     const user = await User.findByIdAndUpdate(

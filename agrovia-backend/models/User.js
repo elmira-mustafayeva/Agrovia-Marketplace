@@ -116,6 +116,11 @@ const userSchema = new mongoose.Schema(
         type: Number,
         default: 500 // km
       },
+      // Kuryerin xidmət göstərdiyi regionlar (qeydiyyatda seçilir)
+      regions: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Region'
+      }],
       isAvailable: {
         type: Boolean,
         default: true
