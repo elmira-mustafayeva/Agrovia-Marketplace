@@ -49,7 +49,7 @@ const cartSchema = new mongoose.Schema(
 );
 
 // Səbəti yadda saxlamazdan əvvəl ümumi məbləği hesabla
-cartSchema.pre('save', function(next) {
+cartSchema.pre('save', async function() {
   this.totalItems = this.items.reduce((sum, item) => sum + item.quantity, 0);
   this.totalAmount = this.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
 });

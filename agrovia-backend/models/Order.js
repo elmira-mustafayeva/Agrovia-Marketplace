@@ -178,7 +178,7 @@ const orderSchema = new mongoose.Schema(
 // # AUTO LOGIC
 
 // Order number generator
-orderSchema.pre("save", function (next) {
+orderSchema.pre("save", async function () {
   if (!this.orderNumber) {
     const prefix = "AGR";
     const timestamp = Date.now().toString(36).toUpperCase();
@@ -188,19 +188,16 @@ orderSchema.pre("save", function (next) {
 
     this.orderNumber = `${prefix}-${timestamp}-${random}`;
   }
-  next();
 });
 
 // Auto price calculation
-orderSchema.pre("save", function (next) {
+orderSchema.pre("save", async function () {
   this.subtotal = this.items.reduce(
     (acc, item) => acc + item.totalPrice,
     0
   );
 
   this.totalAmount = this.subtotal + this.deliveryFee;
-
-  next();
 });
 
 // # INDEXES
