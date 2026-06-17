@@ -219,15 +219,34 @@ exports.getPendingProducts = asyncHandler(async (req, res) => {
 exports.approveProduct = asyncHandler(async (req, res) => {
   const { status } = req.body;
 
-  const product = await Product.findByIdAndUpdate(
-    req.params.id,
-    { status },
-    { new: true }
-  );
+  // Admin may only approve (active) or reject (rejected). Anything else — including
+  // a missing/misnamed field — is a clean 400 instead of a silent no-op.
+  const ALLOWED_STATUSES = ['active', 'rejected'];
+  if (!ALLOWED_STATUSES.includes(status)) {
+    throw new ApiError(400, "Status yalnız 'active' və ya 'rejected' ola bilər");
+  }
+
+  const product = await Product.findById(req.params.id);
 
   if (!product) {
     throw new ApiError(404, 'Məhsul tapılmadı');
   }
+
+  // save() runs schema validators (enum) — the status is guaranteed to persist correctly.
+  product.status = status;
+  await product.save();
+
+  // Notify the seller about the decision (createNotification never throws).
+  await createNotification({
+    recipient: product.seller,
+    sender: req.user._id,
+    type: 'product',
+    title: status === 'active' ? 'Məhsulunuz təsdiqləndi' : 'Məhsulunuz rədd edildi',
+    message: status === 'active'
+      ? `"${product.name}" adlı məhsulunuz təsdiqləndi və artıq satışdadır.`
+      : `"${product.name}" adlı məhsulunuz admin tərəfindən rədd edildi.`,
+    relatedProduct: product._id
+  });
 
   res.status(200).json({
     success: true,

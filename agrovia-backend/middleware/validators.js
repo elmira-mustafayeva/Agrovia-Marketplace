@@ -1,4 +1,5 @@
 const validator = require('validator');
+const mongoose = require('mongoose');
 
 // Helper to collect errors
 const validationResult = (req) => {
@@ -128,8 +129,18 @@ exports.validateOrder = (req, res, next) => {
   const body = req.body || {};
   const { deliveryAddress, paymentMethod } = body;
 
-  if (isEmpty(deliveryAddress)) {
+  if (isEmpty(deliveryAddress) || typeof deliveryAddress !== 'object') {
     errors.push('Çatdırılma ünvanı tələb olunur');
+  } else if (
+    deliveryAddress.region !== undefined &&
+    deliveryAddress.region !== null &&
+    deliveryAddress.region !== ''
+  ) {
+    // If a region is supplied it must be a valid ObjectId — otherwise order
+    // creation throws a Mongoose CastError and surfaces as a confusing 404.
+    if (!mongoose.Types.ObjectId.isValid(deliveryAddress.region)) {
+      errors.push('Çatdırılma ünvanı üçün düzgün region seçin');
+    }
   }
   if (!['cash', 'card', 'online'].includes(paymentMethod)) {
     errors.push('Düzgün ödəniş üsulu seçin');

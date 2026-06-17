@@ -86,9 +86,10 @@ const productSchema = new mongoose.Schema(
     // Status
     status: {
       type: String,
-      enum: ['active', 'inactive', 'out_of_stock', 'pending'],
+      enum: ['active', 'inactive', 'out_of_stock', 'pending', 'rejected'],
       default: 'pending'
-      // active - aktiv, inactive - deaktiv, out_of_stock - stokda yoxdur, pending - təsdiq gözləyir
+      // active - aktiv, inactive - deaktiv, out_of_stock - stokda yoxdur,
+      // pending - təsdiq gözləyir, rejected - admin tərəfindən rədd edildi
     },
     
     // Reytinq
