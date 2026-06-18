@@ -1,6 +1,8 @@
+const mongoose = require('mongoose');
 const User = require('../models/User');
 const Order = require('../models/Order');
 const createNotification = require('../utils/createNotification');
+const deductOrderStock = require('../utils/deductOrderStock');
 
 // @desc    Get courier dashboard
 // @route   GET /api/courier/dashboard
@@ -56,7 +58,8 @@ exports.getAvailableOrders = async (req, res) => {
     const orders = await Order.find({
       status: 'ready',
       courier: null,
-      'deliveryAddress.region': { $in: regions }
+      // sanitizeFilter (config/database.js) wraps raw operators in $eq — trusted() bypasses it
+      'deliveryAddress.region': mongoose.trusted({ $in: regions })
     })
       .populate('buyer', 'firstName lastName phone')
       .populate('items.product', 'name')
@@ -106,7 +109,8 @@ exports.acceptOrder = async (req, res) => {
         _id: req.params.id,
         courier: null,
         status: 'ready',
-        'deliveryAddress.region': { $in: regions }
+        // sanitizeFilter (config/database.js) wraps raw operators in $eq — trusted() bypasses it
+        'deliveryAddress.region': mongoose.trusted({ $in: regions })
       },
       {
         courier: req.user.id,
@@ -184,6 +188,7 @@ exports.getMyDeliveries = async (req, res) => {
     const orders = await Order.find(filter)
       .populate('buyer', 'firstName lastName phone')
       .populate('items.product', 'name')
+      .populate('deliveryAddress.region', 'name')
       .sort({ createdAt: -1 });
 
     res.status(200).json({
@@ -240,6 +245,13 @@ exports.updateDeliveryStatus = async (req, res) => {
       order.deliveredAt = new Date();
       if (order.payment.method === 'cash') {
         order.payment.status = 'paid';
+        // Cash collected on delivery → deduct stock now (idempotent, best-effort:
+        // never block the delivery confirmation if stock math fails on this unused path).
+        try {
+          await deductOrderStock(order._id);
+        } catch (stockErr) {
+          console.error('Cash delivery stock deduction failed:', stockErr.message);
+        }
       }
 
       // Make courier available again

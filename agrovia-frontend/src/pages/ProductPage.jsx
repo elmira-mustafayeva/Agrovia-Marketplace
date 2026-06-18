@@ -1,23 +1,53 @@
-import { useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useEffect, useRef, useState } from 'react';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
 import { Heart, Package, ShoppingBag, Star, Truck } from 'lucide-react';
 import { api } from '../api/agroviaApi';
-import { useOrders, useProduct, useReviews } from '../hooks/useAgroviaData';
-import { EmptyState, LoadingGrid, SectionTitle, formatDate, formatPrice, getProductImage } from '../components/Ui';
+import { useMyReviews, useOrders, useProduct, useReviews } from '../hooks/useAgroviaData';
+import { EmptyState, LoadingGrid, SectionTitle, Stars, formatDate, formatPrice, getProductImage } from '../components/Ui';
+
+// Clickable 5-star rating. Empty by default (value 0); user must actively choose.
+function StarRating({ value, onChange, disabled }) {
+  const [hover, setHover] = useState(0);
+  return (
+    <div className="flex items-center gap-1" role="radiogroup" aria-label="Ulduz qiymətləndirmə">
+      {[1, 2, 3, 4, 5].map((n) => {
+        const filled = (hover || value) >= n;
+        return (
+          <button
+            key={n}
+            type="button"
+            disabled={disabled}
+            aria-label={`${n} ulduz`}
+            aria-pressed={value === n}
+            onClick={() => onChange(n)}
+            onMouseEnter={() => setHover(n)}
+            onMouseLeave={() => setHover(0)}
+            className="rounded p-0.5 transition disabled:cursor-not-allowed"
+          >
+            <Star className={`h-7 w-7 ${filled ? 'fill-amber-400 text-amber-400' : 'text-slate-300'}`} />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 export default function ProductPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const wantsReview = searchParams.get('review') === '1';
+  const orderIdParam = searchParams.get('orderId');
   const { user, token } = useSelector((state) => state.auth);
   const [reviewNote, setReviewNote] = useState('');
-  const [reviewRating, setReviewRating] = useState(5);
-  const [selectedOrderId, setSelectedOrderId] = useState('');
+  const [reviewRating, setReviewRating] = useState(0);
   const [reviewError, setReviewError] = useState('');
   const [reviewSuccess, setReviewSuccess] = useState('');
   const [productToast, setProductToast] = useState({ message: '', type: '' });
   const [roleWarning, setRoleWarning] = useState(false);
+  const reviewRef = useRef(null);
 
   const showToast = (message, type = 'success') => {
     setProductToast({ message, type });
@@ -27,18 +57,33 @@ export default function ProductPage() {
   const productQuery = useProduct(id);
   const reviewsQuery = useReviews(id);
   const ordersQuery = useOrders(!!user);
+  const myReviewsQuery = useMyReviews(!!user);
   const product = productQuery.data;
   const reviews = reviewsQuery.data?.reviews || [];
 
-  const deliveredOrdersForProduct = (ordersQuery.data || []).filter(
+  // Eligible = a delivered AND paid order of this buyer that contains this product
+  const deliveredPaidOrdersForProduct = (ordersQuery.data || []).filter(
     (order) =>
       order.status === 'delivered' &&
+      order.payment?.status === 'paid' &&
       order.items.some((item) => {
         const itemProductId = item.product?._id ?? item.product;
         return String(itemProductId) === id;
       })
   );
-  const canReview = deliveredOrdersForProduct.length > 0;
+  const alreadyReviewed = (myReviewsQuery.data || []).some((r) => {
+    const reviewedProductId = r.product?._id ?? r.product;
+    return String(reviewedProductId) === id;
+  });
+  const hasEligibleOrder = deliveredPaidOrdersForProduct.length > 0;
+  const canReview = hasEligibleOrder && !alreadyReviewed;
+
+  // Scroll to the review panel when arriving with ?review=1 (from OrdersPage)
+  useEffect(() => {
+    if (wantsReview && product && reviewRef.current) {
+      reviewRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [wantsReview, product]);
 
   const addToCartMutation = useMutation({
     mutationFn: api.addToCart,
@@ -79,25 +124,47 @@ export default function ProductPage() {
     mutationFn: api.addReview,
     onSuccess: () => {
       setReviewNote('');
-      setReviewRating(5);
+      setReviewRating(0);
       setReviewError('');
       setReviewSuccess('Rəyiniz göndərildi.');
       queryClient.invalidateQueries({ queryKey: ['reviews', id] });
+      queryClient.invalidateQueries({ queryKey: ['my-reviews'] });
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
     },
     onError: (err) => {
       setReviewSuccess('');
-      setReviewError(err.response?.data?.message || 'Rəy göndərilmədi');
+      const data = err.response?.data;
+      const raw = data?.message || '';
+      let msg;
+      if (/artıq rəy/i.test(raw)) {
+        msg = 'Bu məhsula artıq rəy yazmısınız.';
+      } else if (/çatdırıl|ödəniş|ödənil/i.test(raw)) {
+        msg = 'Rəy yalnız çatdırılmış və ödənilmiş sifariş üçün mümkündür.';
+      } else if (Array.isArray(data?.errors) && data.errors.length) {
+        msg = data.errors.join(', ');
+      } else {
+        msg = raw || 'Rəy göndərilmədi';
+      }
+      setReviewError(msg);
     }
   });
 
   const submitReview = () => {
     setReviewError('');
     setReviewSuccess('');
+    if (!reviewRating) {
+      setReviewError('Zəhmət olmasa ulduzla qiymətləndirin.');
+      return;
+    }
     if (!reviewNote.trim()) {
       setReviewError('Rəy mətni boş ola bilməz');
       return;
     }
-    const orderId = selectedOrderId || deliveredOrdersForProduct[0]?._id;
+    const orderId = orderIdParam || deliveredPaidOrdersForProduct[0]?._id;
+    if (!orderId) {
+      setReviewError('Rəy yazmaq üçün uyğun sifariş tapılmadı.');
+      return;
+    }
     addReviewMutation.mutate({
       orderId,
       productId: id,
@@ -207,7 +274,7 @@ export default function ProductPage() {
               <div key={review._id} className="rounded-3xl border border-slate-200 bg-white p-4">
                 <div className="flex items-center justify-between gap-4">
                   <div className="font-semibold text-ink">{review.user?.firstName} {review.user?.lastName}</div>
-                  <div className="text-sm font-semibold text-forest">{review.productRating}/5</div>
+                  <Stars value={review.productRating} />
                 </div>
                 <p className="mt-2 text-sm leading-6 text-slate-600">{review.productReview}</p>
                 <div className="mt-3 text-xs text-slate-400">{formatDate(review.createdAt)}</div>
@@ -215,44 +282,26 @@ export default function ProductPage() {
             ))}
           </div>
         </div>
-        <div className="panel space-y-4">
+        <div ref={reviewRef} className="panel space-y-4">
           <div className="flex items-center gap-2 text-sm font-semibold text-ink"><Package className="h-4 w-4 text-forest" />Rəy yaz</div>
           {!user ? (
             <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
               Rəy yazmaq üçün <Link to="/auth" className="font-semibold text-forest underline">daxil olun</Link>.
             </div>
-          ) : !canReview ? (
+          ) : alreadyReviewed ? (
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-6 text-center text-sm text-emerald-700">
+              Bu məhsula artıq rəy yazmısınız.
+            </div>
+          ) : !hasEligibleOrder ? (
             <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-6 text-center text-sm text-amber-800">
-              Rəy yazmaq üçün bu məhsulu sifariş edib təhvil almalısınız.
+              Rəy yazmaq üçün məhsulu alıb çatdırılmasını tamamlamalısınız.
             </div>
           ) : (
             <>
-              {deliveredOrdersForProduct.length > 1 ? (
-                <select
-                  className="input-shell"
-                  value={selectedOrderId || deliveredOrdersForProduct[0]._id}
-                  onChange={(event) => setSelectedOrderId(event.target.value)}
-                  disabled={addReviewMutation.isPending}
-                >
-                  {deliveredOrdersForProduct.map((order) => (
-                    <option key={order._id} value={order._id}>
-                      Sifariş #{order.orderNumber || order._id.slice(-6)}
-                    </option>
-                  ))}
-                </select>
-              ) : null}
-              <select
-                className="input-shell"
-                value={reviewRating}
-                onChange={(event) => setReviewRating(Number(event.target.value))}
-                disabled={addReviewMutation.isPending}
-              >
-                <option value={5}>⭐⭐⭐⭐⭐ — 5/5</option>
-                <option value={4}>⭐⭐⭐⭐ — 4/5</option>
-                <option value={3}>⭐⭐⭐ — 3/5</option>
-                <option value={2}>⭐⭐ — 2/5</option>
-                <option value={1}>⭐ — 1/5</option>
-              </select>
+              <div>
+                <div className="mb-2 text-sm font-medium text-slate-700">Qiymətləndirmə</div>
+                <StarRating value={reviewRating} onChange={setReviewRating} disabled={addReviewMutation.isPending} />
+              </div>
               <textarea
                 className="input-shell min-h-40"
                 placeholder="Məhsul haqqında rəyinizi yazın..."
@@ -272,7 +321,7 @@ export default function ProductPage() {
               </button>
             </>
           )}
-          <p className="text-xs leading-6 text-slate-500">Rəy yalnız çatdırılmış sifariş üçün qəbul edilir.</p>
+          <p className="text-xs leading-6 text-slate-500">Rəy yalnız çatdırılmış və ödənilmiş sifariş üçün qəbul edilir.</p>
         </div>
       </div>
     </section>

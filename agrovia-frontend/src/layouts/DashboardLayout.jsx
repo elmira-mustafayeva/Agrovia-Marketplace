@@ -23,7 +23,7 @@ export default function DashboardLayout({ title, subtitle, children }) {
             <NavLink to="/orders" className={linkClass}><ShoppingCart className="h-4 w-4" />Orders</NavLink>
             <NavLink to="/cart" className={linkClass}><Package className="h-4 w-4" />Cart</NavLink>
             <NavLink to="/wishlist" className={linkClass}><Heart className="h-4 w-4" />Wishlist</NavLink>
-            <NavLink to="/delivery" className={linkClass}><Truck className="h-4 w-4" />Delivery</NavLink>
+            <NavLink to="/delivery" className={linkClass}><Truck className="h-4 w-4" />Çatdırılma kalkulyatoru</NavLink>
             <NavLink to="/auth" className={linkClass}><LogIn className="h-4 w-4" />Auth</NavLink>
           </nav>
           <div className="mt-6 rounded-3xl bg-slate-950 p-4 text-white">

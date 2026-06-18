@@ -7,8 +7,10 @@ import {
   ActivityRow,
   EmptyState,
   LoadingGrid,
+  ORDER_STATUS_LABELS,
   SectionTitle,
   StatCard,
+  StatusBadge,
   formatPrice,
   roleLabel,
 } from '../components/Ui';
@@ -86,12 +88,31 @@ export default function DashboardPage() {
     mutationFn: (id) => api.courierAcceptOrder(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['courier-available-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['courier-deliveries'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard', 'courier'] });
       queryClient.invalidateQueries({ queryKey: ['me'] });
     },
   });
 
+  const deliveriesQuery = useQuery({
+    queryKey: ['courier-deliveries'],
+    queryFn: api.courierOrders,
+    enabled: role === 'courier',
+  });
+
+  const markDeliveredMutation = useMutation({
+    mutationFn: (id) => api.courierUpdateDeliveryStatus(id, 'delivered'),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dashboard', 'courier'] });
+      queryClient.invalidateQueries({ queryKey: ['courier-deliveries'] });
+      queryClient.invalidateQueries({ queryKey: ['courier-available-orders'] });
+      queryClient.invalidateQueries({ queryKey: ['me'] });
+    },
+  });
+
   const stats = dashboardQuery.data?.stats || {};
+  const courierBusy = stats.isAvailable === false;
+  const myDeliveries = deliveriesQuery.data?.orders || [];
   const pendingProducts = adminPendingProductsQuery.data?.products || [];
 
   if (!user) {
@@ -294,7 +315,66 @@ export default function DashboardPage() {
                 ) : null}
               </div>
 
+              <div className="border-t border-slate-100 pt-4 text-lg font-semibold text-ink">Mənim çatdırılmalarım</div>
+              {deliveriesQuery.isLoading ? (
+                <LoadingGrid rows={1} />
+              ) : myDeliveries.length === 0 ? (
+                <EmptyState
+                  title="Aktiv çatdırılma yoxdur"
+                  description="Hazırda sizə təyin olunmuş çatdırılma yoxdur."
+                />
+              ) : (
+                <div className="space-y-3">
+                  {myDeliveries.map((order) => (
+                    <div key={order._id} className="rounded-2xl border border-slate-200 p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-ink">#{order.orderNumber || order._id.slice(-6)}</span>
+                            <StatusBadge status={order.status} map={ORDER_STATUS_LABELS} />
+                          </div>
+                          <div className="mt-1 text-sm text-slate-600">
+                            {order.deliveryAddress?.region?.name || '—'}
+                            {order.deliveryAddress?.street ? ` • ${order.deliveryAddress.street}` : ''}
+                          </div>
+                          <div className="mt-1 text-sm text-slate-500">
+                            {order.buyer?.firstName} {order.buyer?.lastName}
+                            {order.buyer?.phone ? ` • ${order.buyer.phone}` : ''}
+                          </div>
+                          {order.items?.length ? (
+                            <div className="mt-1 text-sm text-slate-500">
+                              {order.items.map((it) => `${it.name} ×${it.quantity}`).join(', ')}
+                            </div>
+                          ) : null}
+                          <div className="mt-1 text-sm font-semibold text-forest">{formatPrice(order.totalAmount)}</div>
+                        </div>
+                        {order.status === 'out_for_delivery' ? (
+                          <button
+                            type="button"
+                            className="btn-primary flex-shrink-0 text-sm"
+                            disabled={markDeliveredMutation.isPending}
+                            onClick={() => markDeliveredMutation.mutate(order._id)}
+                          >
+                            {markDeliveredMutation.isPending ? 'Gözləyin...' : 'Çatdırıldı'}
+                          </button>
+                        ) : null}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {markDeliveredMutation.isError ? (
+                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+                  {markDeliveredMutation.error?.response?.data?.message || 'Status yenilənmədi.'}
+                </div>
+              ) : null}
+
               <div className="border-t border-slate-100 pt-4 text-lg font-semibold text-ink">Mövcud sifarişlər</div>
+              {courierBusy ? (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
+                  Hazırda aktiv çatdırılmanız var. Yeni sifariş qəbul etmək üçün əvvəlcə cari çatdırılmanı tamamlayın.
+                </div>
+              ) : null}
               {availableOrdersQuery.isLoading ? (
                 <LoadingGrid rows={1} />
               ) : availableOrdersQuery.data?.reason === 'NO_REGIONS' ? (
@@ -327,10 +407,10 @@ export default function DashboardPage() {
                         <button
                           type="button"
                           className="btn-primary flex-shrink-0 text-sm"
-                          disabled={acceptOrderMutation.isPending}
+                          disabled={acceptOrderMutation.isPending || courierBusy}
                           onClick={() => acceptOrderMutation.mutate(order._id)}
                         >
-                          {acceptOrderMutation.isPending ? 'Gözləyin...' : 'Qəbul et'}
+                          {acceptOrderMutation.isPending ? 'Gözləyin...' : courierBusy ? 'Məşğulsunuz' : 'Qəbul et'}
                         </button>
                       </div>
                     </div>

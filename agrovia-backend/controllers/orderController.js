@@ -5,6 +5,7 @@ const User = require('../models/User');
 const asyncHandler = require('../utils/asyncHandler');
 const ApiError = require('../utils/ApiError');
 const createNotification = require('../utils/createNotification');
+const deductOrderStock = require('../utils/deductOrderStock');
 
 // Sifariş yarat
 exports.createOrder = asyncHandler(async (req, res) => {
@@ -45,10 +46,9 @@ exports.createOrder = asyncHandler(async (req, res) => {
       totalPrice
     });
 
-    // Stoku azalt
-    product.stockQuantity -= item.quantity;
-    product.totalSales += item.quantity;
-    await product.save();
+    // Stock is NOT deducted here. It is deducted atomically at payment success
+    // (card → confirmPayment/webhook) or delivery (cash) via deductOrderStock().
+    // The check above is a friendly pre-validation only.
   }
 
   // Çatdırılma haqqı (müvəqqəti olaraq 5 AZN)
@@ -113,6 +113,7 @@ exports.getMyOrders = asyncHandler(async (req, res) => {
       .populate('items.product', 'name images')
       .populate('items.seller', 'firstName lastName sellerInfo.businessName')
       .populate('courier', 'firstName lastName courierInfo.vehicleType')
+      .populate('deliveryAddress.region', 'name')
       .sort({ createdAt: -1 })
       .skip((Number(page) - 1) * Number(limit))
       .limit(Number(limit)),
@@ -225,6 +226,13 @@ exports.updateOrderStatus = asyncHandler(async (req, res) => {
     order.deliveredAt = new Date();
     if (order.payment.method === 'cash') {
       order.payment.status = 'paid';
+      // Cash is collected on delivery → deduct stock now (idempotent, best-effort:
+      // never block the delivery confirmation if stock math fails on this unused path).
+      try {
+        await deductOrderStock(order._id);
+      } catch (stockErr) {
+        console.error('Cash delivery stock deduction failed:', stockErr.message);
+      }
     }
   }
 

@@ -3,6 +3,7 @@ const Order = require('../models/Order');
 const asyncHandler = require('../utils/asyncHandler');
 const ApiError = require('../utils/ApiError');
 const createNotification = require('../utils/createNotification');
+const deductOrderStock = require('../utils/deductOrderStock');
 
 // Lazily instantiate — throws a clear ApiError at call time if key is missing,
 // rather than crashing the whole server at startup.
@@ -98,6 +99,26 @@ exports.confirmPayment = asyncHandler(async (req, res) => {
   }
 
   if (paymentIntent.status === 'succeeded') {
+    // Idempotent: already finalized → return success without deducting stock again.
+    if (order.payment.status === 'paid') {
+      return res.status(200).json({
+        success: true,
+        message: 'Ödəniş artıq təsdiqlənib',
+        data: {
+          status: 'paid',
+          orderId: order._id,
+          orderNumber: order.orderNumber,
+          paidAt: order.payment.paidAt
+        }
+      });
+    }
+
+    // Deduct stock atomically BEFORE marking paid. Insufficient stock throws
+    // ApiError(400) → order stays unpaid, no partial deduction. (Edge: card was
+    // already charged by Stripe; this requires a manual refund — rare, since stock
+    // is validated at order creation.)
+    await deductOrderStock(order._id);
+
     order.payment.status = 'paid';
     order.payment.paidAt = new Date();
     order.payment.transactionId = paymentIntent.id;
@@ -183,18 +204,26 @@ exports.stripeWebhook = asyncHandler(async (req, res) => {
     const order = await Order.findOne({ 'payment.paymentIntentId': paymentIntent.id });
 
     if (order && order.payment.status !== 'paid') {
-      order.payment.status = 'paid';
-      order.payment.paidAt = new Date();
-      order.payment.transactionId = paymentIntent.id;
-      await order.save({ validateBeforeSave: false });
+      // Secure stock first (idempotent — no-op if confirmPayment already deducted).
+      // Only mark paid if stock could be deducted; otherwise leave for manual handling.
+      try {
+        await deductOrderStock(order._id);
 
-      await createNotification({
-        recipient: order.buyer,
-        type: 'order',
-        title: 'Ödənişiniz uğurla tamamlandı',
-        message: `${order.orderNumber || order._id} nömrəli sifarişiniz üçün ödəniş qəbul edildi.`,
-        relatedOrder: order._id
-      });
+        order.payment.status = 'paid';
+        order.payment.paidAt = new Date();
+        order.payment.transactionId = paymentIntent.id;
+        await order.save({ validateBeforeSave: false });
+
+        await createNotification({
+          recipient: order.buyer,
+          type: 'order',
+          title: 'Ödənişiniz uğurla tamamlandı',
+          message: `${order.orderNumber || order._id} nömrəli sifarişiniz üçün ödəniş qəbul edildi.`,
+          relatedOrder: order._id
+        });
+      } catch (stockErr) {
+        console.error('Webhook stock deduction failed, order left unpaid:', stockErr.message);
+      }
     }
   }
 

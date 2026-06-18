@@ -1,6 +1,18 @@
 import { motion } from 'framer-motion';
-import { ArrowRight, BadgeCheck, Clock3, Heart, Leaf, PackageSearch, Sprout, Truck } from 'lucide-react';
+import { ArrowRight, BadgeCheck, Clock3, Heart, Leaf, PackageSearch, Sprout, Star, Truck } from 'lucide-react';
 import { formatDate, formatPrice, getProductImage, roleLabel } from '../lib/format';
+
+// Read-only star display: filled up to `value`, empty after. e.g. value 3 → ★★★☆☆
+export function Stars({ value = 0, className = '' }) {
+  const v = Math.max(0, Math.min(5, Math.round(Number(value) || 0)));
+  return (
+    <span className={`inline-flex items-center gap-0.5 ${className}`} aria-label={`${v}/5`}>
+      {[1, 2, 3, 4, 5].map((n) => (
+        <Star key={n} className={`h-4 w-4 ${n <= v ? 'fill-amber-400 text-amber-400' : 'text-slate-300'}`} />
+      ))}
+    </span>
+  );
+}
 
 export const UNIT_LABELS = {
   kg: 'kq',

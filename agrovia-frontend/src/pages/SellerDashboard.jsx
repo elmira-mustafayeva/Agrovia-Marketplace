@@ -33,12 +33,13 @@ import {
 } from 'lucide-react';
 import { api } from '../api/agroviaApi';
 import { clearCredentials, setCredentials } from '../features/auth/authSlice';
-import { useSellerOrders, useUpdateOrderStatus } from '../hooks/useAgroviaData';
+import { useSellerOrders, useSellerReviews, useUpdateOrderStatus } from '../hooks/useAgroviaData';
 import {
   ORDER_STATUS_LABELS,
   PAYMENT_METHOD_LABELS,
   PAYMENT_STATUS_LABELS,
   StatusBadge,
+  Stars,
   UNIT_LABELS,
   formatDate,
   formatPrice,
@@ -52,6 +53,7 @@ const NAV_ITEMS = [
   { key: 'products',    icon: Package,         label: 'Məhsullarım' },
   { key: 'add-product', icon: Plus,            label: 'Məhsul əlavə et' },
   { key: 'orders',      icon: ShoppingBag,     label: 'Sifarişlər' },
+  { key: 'reviews',     icon: Star,            label: 'Rəylər' },
   { key: 'profile',     icon: User,            label: 'Profil' },
   { key: 'settings',    icon: Settings,        label: 'Tənzimləmələr' },
 ];
@@ -59,7 +61,6 @@ const NAV_ITEMS = [
 const LOCKED_ITEMS = [
   { icon: Warehouse, label: 'Anbar' },
   { icon: BarChart3, label: 'Analitika' },
-  { icon: Star,      label: 'Rəylər' },
 ];
 
 const BREADCRUMBS = {
@@ -67,6 +68,7 @@ const BREADCRUMBS = {
   products:       ['Məhsullar', 'Məhsul idarəetməsi'],
   'add-product':  ['Məhsullar', 'Yeni məhsul'],
   orders:         ['Sifarişlər', 'Sifariş idarəetməsi'],
+  reviews:        ['Rəylər', 'Məhsul rəyləri'],
   profile:        ['Profil', 'Satıcı məlumatları'],
   settings:       ['Tənzimləmələr'],
   'coming-soon':  ['Tezliklə'],
@@ -125,6 +127,59 @@ function ProductStatusBadge({ status }) {
     <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${s.cls}`}>
       {s.label}
     </span>
+  );
+}
+
+// Reviews written for this seller's products (GET /api/seller/reviews — backend-filtered).
+function SellerReviewsSection() {
+  const reviewsQuery = useSellerReviews(true);
+  const reviews = reviewsQuery.data || [];
+
+  if (reviewsQuery.isLoading) {
+    return (
+      <div className="space-y-3">
+        <SkelRow />
+        <SkelRow />
+        <SkelRow />
+      </div>
+    );
+  }
+
+  if (reviews.length === 0) {
+    return (
+      <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center">
+        <Star className="mx-auto h-8 w-8 text-slate-300" />
+        <p className="mt-3 text-sm text-slate-500">Məhsullarınıza hələ rəy yazılmayıb.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {reviews.map((review) => (
+        <div key={review._id} className="rounded-2xl border border-slate-200 bg-white p-4">
+          <div className="flex gap-4">
+            <img
+              src={getProductImage(review.product)}
+              alt={review.product?.name}
+              className="h-16 w-16 shrink-0 rounded-xl border border-slate-100 object-cover"
+            />
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="font-semibold text-ink">{review.product?.name || 'Məhsul'}</div>
+                <Stars value={review.productRating} />
+              </div>
+              <div className="mt-0.5 text-sm text-slate-500">
+                {review.user?.firstName} {review.user?.lastName}
+                {review.order?.orderNumber ? ` • #${review.order.orderNumber}` : ''}
+              </div>
+              <p className="mt-2 text-sm leading-6 text-slate-600">{review.productReview}</p>
+              <div className="mt-2 text-xs text-slate-400">{formatDate(review.createdAt)}</div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -1748,6 +1803,8 @@ export default function SellerDashboard() {
               {section === 'orders' && (
                 <OrdersSection orders={sellerOrders} isLoading={sellerOrdersQuery.isLoading} />
               )}
+
+              {section === 'reviews' && <SellerReviewsSection />}
 
               {section === 'profile' && (
                 <ProfileSection user={user} stats={stats} meData={meData} regions={regions} />

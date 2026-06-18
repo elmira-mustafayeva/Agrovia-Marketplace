@@ -115,6 +115,13 @@ const orderSchema = new mongoose.Schema(
       paidAt: Date
     },
 
+    // Stock idempotency marker — true once order items have decremented product stock.
+    // Stock is deducted at payment success (card) / delivery (cash), never at order create.
+    stockDeducted: {
+      type: Boolean,
+      default: false
+    },
+
     // Order Status
     status: {
       type: String,
