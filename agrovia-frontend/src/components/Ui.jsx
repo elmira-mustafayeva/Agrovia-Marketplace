@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowRight, BadgeCheck, Clock3, Heart, Leaf, PackageSearch, Sprout, Star, Truck } from 'lucide-react';
 import { formatDate, formatPrice, getProductImage, roleLabel } from '../lib/format';
@@ -11,6 +12,33 @@ export function Stars({ value = 0, className = '' }) {
         <Star key={n} className={`h-4 w-4 ${n <= v ? 'fill-amber-400 text-amber-400' : 'text-slate-300'}`} />
       ))}
     </span>
+  );
+}
+
+// Interactive 5-star picker. Empty by default (value 0); user must actively choose.
+export function StarRating({ value, onChange, disabled }) {
+  const [hover, setHover] = useState(0);
+  return (
+    <div className="flex items-center gap-1" role="radiogroup" aria-label="Ulduz qiymətləndirmə">
+      {[1, 2, 3, 4, 5].map((n) => {
+        const filled = (hover || value) >= n;
+        return (
+          <button
+            key={n}
+            type="button"
+            disabled={disabled}
+            aria-label={`${n} ulduz`}
+            aria-pressed={value === n}
+            onClick={() => onChange(n)}
+            onMouseEnter={() => setHover(n)}
+            onMouseLeave={() => setHover(0)}
+            className="rounded p-0.5 transition disabled:cursor-not-allowed"
+          >
+            <Star className={`h-7 w-7 ${filled ? 'fill-amber-400 text-amber-400' : 'text-slate-300'}`} />
+          </button>
+        );
+      })}
+    </div>
   );
 }
 

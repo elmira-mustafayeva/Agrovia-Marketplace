@@ -45,6 +45,7 @@ import {
   formatPrice,
   getProductImage,
 } from '../components/Ui';
+import LocationPicker from '../components/LocationPicker';
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
@@ -248,6 +249,7 @@ function StatsRow({ stats }) {
     { icon: ClipboardList, iconCls: 'bg-amber-100 text-amber-600',     label: 'Gözləyən sifarişlər', value: stats.pendingOrders ?? 0 },
     { icon: ShoppingBag,   iconCls: 'bg-emerald-100 text-emerald-600', label: 'Ümumi sifarişlər',    value: stats.totalOrders ?? 0 },
     { icon: Wallet,        iconCls: 'bg-purple-100 text-purple-600',   label: 'Gəlir',               value: formatPrice(stats.revenue ?? 0) },
+    { icon: Wallet,        iconCls: 'bg-forest/10 text-forest',        label: 'Ödəniləcək',          value: formatPrice(stats.payable ?? 0) },
   ];
   return (
     <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
@@ -622,6 +624,11 @@ function EditProductModal({ product, categories, regions, onClose, onSuccess }) 
     discountPct:      String(product.discount?.percentage ?? '0'),
   });
   const [tags, setTags] = useState(Array.isArray(product.tags) ? product.tags : []);
+  const [location, setLocation] = useState(
+    product.location && Number.isFinite(product.location.lat)
+      ? { lat: product.location.lat, lng: product.location.lng }
+      : null
+  );
   const [msg, setMsg] = useState('');
   const [ok, setOk] = useState(false);
 
@@ -658,6 +665,8 @@ function EditProductModal({ product, categories, regions, onClose, onSuccess }) 
     fd.append('region',           form.region);
     fd.append('tags',             JSON.stringify(tags));
     fd.append('discount',         JSON.stringify({ percentage: Number(form.discountPct) || 0 }));
+    // Send the origin override (or null to clear). Backend validates the coordinates.
+    fd.append('location',         JSON.stringify(location));
     mutation.mutate(fd);
   };
 
@@ -695,6 +704,14 @@ function EditProductModal({ product, categories, regions, onClose, onSuccess }) 
               <input type="number" min="0" max="100" className="input-shell w-full" value={form.discountPct} onChange={e => sf('discountPct', e.target.value)} />
             </FormField>
           </div>
+
+          <FormField label="Götürmə nöqtəsi (istəyə bağlı)" helper="Boş olduqda profil götürmə nöqtəniz / region istifadə olunur.">
+            <LocationPicker
+              value={location}
+              onChange={({ lat, lng }) => setLocation({ lat, lng })}
+              placeholder="Məhsulun göndərildiyi yeri xəritədə tap..."
+            />
+          </FormField>
 
           <div className="grid gap-4 sm:grid-cols-3">
             <FormField label="Min. sifariş" required>
@@ -1013,6 +1030,7 @@ function AddProductForm({ categories, sellerRegion, onSuccess, onCancel }) {
   const [tags, setTags] = useState([]);
   const [images, setImages] = useState([]);
   const [videos, setVideos] = useState([]);
+  const [location, setLocation] = useState(null);
   const [msg, setMsg] = useState('');
   const [success, setSuccess] = useState(false);
 
@@ -1063,6 +1081,7 @@ function AddProductForm({ categories, sellerRegion, onSuccess, onCancel }) {
     fd.append('region',           sellerRegion._id);
     fd.append('tags',             JSON.stringify(tags));
     fd.append('discount',         JSON.stringify({ percentage: Number(form.discountPercentage) || 0 }));
+    if (location) fd.append('location', JSON.stringify(location));
     for (const img of images) fd.append('images', img);
     for (const vid of videos) fd.append('video', vid);
     mutation.mutate(fd);
@@ -1171,6 +1190,16 @@ function AddProductForm({ categories, sellerRegion, onSuccess, onCancel }) {
           </label>
         </FormField>
       </Card>
+
+      <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm space-y-3">
+        <div className="text-sm font-semibold text-ink">Götürmə nöqtəsi (istəyə bağlı)</div>
+        <p className="text-xs text-slate-400">Boş buraxsanız, profil götürmə nöqtəniz və ya region istifadə olunur. Yalnız bu məhsul başqa yerdən göndərilirsə doldurun.</p>
+        <LocationPicker
+          value={location}
+          onChange={({ lat, lng }) => setLocation({ lat, lng })}
+          placeholder="Məhsulun göndərildiyi yeri xəritədə tap..."
+        />
+      </div>
 
       {msg ? (
         <div className={`rounded-xl border px-4 py-3 text-sm ${success ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-red-200 bg-red-50 text-red-700'}`}>
@@ -1418,6 +1447,9 @@ function ProfileSection({ user, stats, meData, regions }) {
     businessName:        sellerInfo.businessName ?? '',
     businessDescription: sellerInfo.businessDescription ?? '',
     saleType:            sellerInfo.saleType ?? 'both',
+    pickupLocation:      (sellerInfo.pickupLocation && Number.isFinite(sellerInfo.pickupLocation.lat))
+      ? { lat: sellerInfo.pickupLocation.lat, lng: sellerInfo.pickupLocation.lng }
+      : null,
   });
   const [msg, setMsg]     = useState('');
   const [msgOk, setMsgOk] = useState(false);
@@ -1442,6 +1474,7 @@ function ProfileSection({ user, stats, meData, regions }) {
         businessName:        business.businessName,
         businessDescription: business.businessDescription,
         saleType:            business.saleType,
+        pickupLocation:      business.pickupLocation || null,
       });
       // Fetch fresh user data and update both React Query cache and Redux/localStorage
       const freshData = await api.me();
@@ -1520,6 +1553,13 @@ function ProfileSection({ user, stats, meData, regions }) {
                 <option value="wholesale">Topdan</option>
                 <option value="both">Hər ikisi</option>
               </select>
+            </FormField>
+            <FormField label="Götürmə nöqtəsi (çatdırılma məsafəsi bu nöqtədən hesablanır)" helper="Məhsulların göndərildiyi dəqiq yer">
+              <LocationPicker
+                value={business.pickupLocation}
+                onChange={({ lat, lng }) => sb('pickupLocation', { lat, lng })}
+                placeholder="Götürmə ünvanını xəritədə tap..."
+              />
             </FormField>
           </div>
 

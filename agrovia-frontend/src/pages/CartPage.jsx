@@ -7,6 +7,7 @@ import { Elements, CardNumberElement, CardExpiryElement, CardCvcElement, useStri
 import { api } from '../api/agroviaApi';
 import { useCart, useRegions, useWishlist } from '../hooks/useAgroviaData';
 import { EmptyState, LoadingGrid, SectionTitle, UNIT_LABELS, formatPrice } from '../components/Ui';
+import LocationPicker from '../components/LocationPicker';
 
 const stripePromise = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY
   ? loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY)
@@ -110,6 +111,35 @@ export default function CartPage() {
   const orderMutation = useMutation({ mutationFn: api.createOrder });
   const paymentIntentMutation = useMutation({ mutationFn: api.createPaymentIntent });
 
+  // Distance-based delivery estimate to the buyer's EXACT location (display only;
+  // backend uses the picked coordinates directly, or geocodes the typed address).
+  const [deliveryEstimate, setDeliveryEstimate] = useState(null);
+  const [pickedLocation, setPickedLocation] = useState(null);
+  const [mapAvailable, setMapAvailable] = useState(false);
+  const estimateMutation = useMutation({
+    mutationFn: ({ region, street, location }) => api.estimateDelivery({ region, street, location }),
+    onSuccess: (data) => setDeliveryEstimate({ fee: data.deliveryFee, distanceKm: data.distanceKm }),
+    onError: (err) => setDeliveryEstimate({ error: err.response?.data?.message || 'Çatdırılma hesablana bilmədi.' }),
+  });
+  const triggerEstimate = (region, street, location) => {
+    setDeliveryEstimate(null);
+    if (region && (location || (street && street.trim()))) {
+      estimateMutation.mutate({ region, street: (street || '').trim(), location: location || undefined });
+    }
+  };
+  const handleRegionChange = (e) => {
+    const region = e.target.value;
+    setForm((prev) => ({ ...prev, region }));
+    triggerEstimate(region, form.street, pickedLocation);
+  };
+  const handleStreetBlur = () => triggerEstimate(form.region, form.street, pickedLocation);
+  const handlePickLocation = ({ lat, lng, addressText }) => {
+    const location = { lat, lng };
+    setPickedLocation(location);
+    setForm((prev) => ({ ...prev, street: addressText || prev.street }));
+    triggerEstimate(form.region, addressText || form.street, location);
+  };
+
   const updateMutation = useMutation({
     mutationFn: ({ itemId, quantity }) => api.updateCartItem(itemId, { quantity }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['cart'] }),
@@ -204,6 +234,12 @@ export default function CartPage() {
       setCheckoutError('Bütün məcburi sahələri (*) doldurun');
       return;
     }
+    // When the map picker is usable, require a confirmed pin (exact coordinates).
+    // Typed-address fallback is allowed only when the key is missing / script failed.
+    if (mapAvailable && !pickedLocation) {
+      setCheckoutError('Zəhmət olmasa çatdırılma ünvanını xəritədən seçin.');
+      return;
+    }
 
     try {
       // POST /api/orders → { success, message, order: { _id, totalAmount, ... } }
@@ -212,7 +248,9 @@ export default function CartPage() {
           recipientName: recipientName.trim(),
           phone: phone.trim(),
           region,
-          street: street.trim()
+          street: street.trim(),
+          // Exact picked point — backend uses it directly (no re-geocode) when valid.
+          coordinates: pickedLocation || undefined
         },
         paymentMethod: 'card',
         notes: notes.trim() || undefined
@@ -264,8 +302,8 @@ export default function CartPage() {
 
   const items = cart?.items || [];
   const subtotal = items.reduce((sum, item) => sum + (item.price || item.product?.price || 0) * item.quantity, 0);
-  const deliveryFee = subtotal >= 50 ? 0 : 5;
-  const total = subtotal + deliveryFee;
+  const deliveryFee = deliveryEstimate?.fee ?? null;
+  const total = subtotal + (deliveryFee || 0);
 
   const isSubmitting = orderMutation.isPending || paymentIntentMutation.isPending;
 
@@ -434,9 +472,22 @@ export default function CartPage() {
                   <span className="font-semibold text-ink">{formatPrice(subtotal)}</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
-                  <span>Çatdırılma</span>
-                  <span className="font-semibold text-forest">{deliveryFee === 0 ? 'Pulsuz' : formatPrice(deliveryFee)}</span>
+                  <span>Çatdırılma{deliveryEstimate?.distanceKm ? ` (~${deliveryEstimate.distanceKm} km)` : ''}</span>
+                  <span className="font-semibold text-forest">
+                    {estimateMutation.isPending
+                      ? 'hesablanır…'
+                      : deliveryEstimate?.error
+                        ? 'Hesablana bilmədi'
+                        : deliveryFee != null
+                          ? formatPrice(deliveryFee)
+                          : 'Region və ünvan daxil edin'}
+                  </span>
                 </div>
+                {deliveryEstimate?.error ? (
+                  <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                    {deliveryEstimate.error}
+                  </div>
+                ) : null}
                 <div className="flex items-center justify-between border-t border-slate-200 pt-3 text-sm font-semibold">
                   <span>Cəmi</span>
                   <span className="text-forest">{formatPrice(total)}</span>
@@ -451,11 +502,12 @@ export default function CartPage() {
                   ) : null}
                   <input className="input-shell" placeholder="Ad Soyad *" value={form.recipientName} onChange={setField('recipientName')} disabled={isSubmitting} />
                   <input className="input-shell" placeholder="Telefon *" value={form.phone} onChange={setField('phone')} disabled={isSubmitting} />
-                  <select className="input-shell" value={form.region} onChange={setField('region')} disabled={isSubmitting}>
+                  <select className="input-shell" value={form.region} onChange={handleRegionChange} disabled={isSubmitting}>
                     <option value="">Region seçin *</option>
                     {regions.map((r) => <option key={r._id} value={r._id}>{r.name}</option>)}
                   </select>
-                  <input className="input-shell" placeholder="Küçə / Ünvan *" value={form.street} onChange={setField('street')} disabled={isSubmitting} />
+                  <LocationPicker value={pickedLocation} onChange={handlePickLocation} onAvailabilityChange={setMapAvailable} placeholder="Çatdırılma ünvanını xəritədə tap..." />
+                  <input className="input-shell" placeholder="Küçə / dəqiq ünvan *" value={form.street} onChange={setField('street')} onBlur={handleStreetBlur} disabled={isSubmitting} />
                   <textarea className="input-shell" placeholder="Qeyd (istəyə bağlı)" value={form.notes} onChange={setField('notes')} disabled={isSubmitting} rows={2} />
                   <button type="submit" className="btn-primary w-full" disabled={isSubmitting}>
                     {isSubmitting ? 'Göndərilir...' : 'Ödənişə keç'}

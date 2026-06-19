@@ -1,5 +1,6 @@
 const Product = require('../models/Product');
 const { deleteFromCloudinary } = require('../middleware/upload');
+const { isValidCoords } = require('../utils/computeOrderDelivery');
 
 // Safely parse a JSON field arriving as a multipart/form-data string.
 // Returns { ok: true, value } on success (passing through objects and using
@@ -131,7 +132,8 @@ exports.createProduct = async (req, res) => {
       region,
       attributes,
       tags,
-      discount
+      discount,
+      location
     } = req.body;
 
     // req.files is an object from .fields(): { images: [...], video: [...] }
@@ -151,11 +153,13 @@ exports.createProduct = async (req, res) => {
     const parsedAttributes = parseJsonField(attributes, []);
     const parsedTags = parseJsonField(tags, []);
     const parsedDiscount = parseJsonField(discount, { percentage: 0 });
+    const parsedLocation = parseJsonField(location, null);
 
     const jsonErrors = [];
     if (!parsedAttributes.ok) jsonErrors.push('Xüsusiyyətlər (attributes) düzgün formatda deyil');
     if (!parsedTags.ok) jsonErrors.push('Teqlər (tags) düzgün formatda deyil');
     if (!parsedDiscount.ok) jsonErrors.push('Endirim (discount) düzgün formatda deyil');
+    if (!parsedLocation.ok) jsonErrors.push('Götürmə nöqtəsi (location) düzgün formatda deyil');
     if (jsonErrors.length > 0) {
       return res.status(400).json({
         success: false,
@@ -192,6 +196,11 @@ exports.createProduct = async (req, res) => {
       attributes: parsedAttributes.value,
       tags: parsedTags.value,
       discount: parsedDiscount.value,
+      // Optional exact origin override — only stored when valid (else delivery falls
+      // back to seller pickup / region at order time).
+      ...(isValidCoords(parsedLocation.value)
+        ? { location: { lat: Number(parsedLocation.value.lat), lng: Number(parsedLocation.value.lng) } }
+        : {}),
       status: 'pending'
     });
 
@@ -254,6 +263,18 @@ exports.updateProduct = async (req, res) => {
         }
       }
     });
+
+    // Optional exact origin override (validated separately from the JSON fields above).
+    if (req.body.location !== undefined) {
+      const parsed = parseJsonField(req.body.location, null);
+      if (!parsed.ok) {
+        jsonErrors.push('Götürmə nöqtəsi (location) düzgün formatda deyil');
+      } else if (isValidCoords(parsed.value)) {
+        updates.location = { lat: Number(parsed.value.lat), lng: Number(parsed.value.lng) };
+      } else if (parsed.value === null) {
+        updates.location = undefined; // explicit clear
+      }
+    }
 
     if (jsonErrors.length > 0) {
       return res.status(400).json({

@@ -110,10 +110,27 @@ export default function DashboardPage() {
     },
   });
 
+  const adminOrdersQuery = useQuery({
+    queryKey: ['admin-orders'],
+    queryFn: api.adminOrders,
+    enabled: role === 'admin',
+  });
+
+  const markPayoutMutation = useMutation({
+    mutationFn: ({ id, target }) => api.markPayout(id, target),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dashboard', 'admin'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-orders'] });
+    },
+  });
+
   const stats = dashboardQuery.data?.stats || {};
   const courierBusy = stats.isAvailable === false;
   const myDeliveries = deliveriesQuery.data?.orders || [];
   const pendingProducts = adminPendingProductsQuery.data?.products || [];
+  const payableOrders = (adminOrdersQuery.data?.orders || []).filter(
+    (o) => o.payout?.sellerPayoutStatus === 'available' || o.payout?.courierPayoutStatus === 'available'
+  );
 
   if (!user) {
     return <EmptyState title="Daxil ol" description="Dashboard-i görmək üçün daxil olmalısan." />;
@@ -152,13 +169,19 @@ export default function DashboardPage() {
                 <ActivityRow title="Nəqliyyat" meta={stats.vehicleType || '—'} value={stats.isAvailable ? 'Mövcuddur' : 'Məşğuldur'} />
                 <ActivityRow title="Rating" meta="Kuryer performansı" value={`${stats.rating || 0}/5`} />
                 <ActivityRow title="Gözləyən çatdırılmalar" meta="Hazırda təyin olunmuş" value={stats.pendingDeliveries || 0} />
+                <ActivityRow title="Ümumi qazanc" meta={`${stats.completedDeliveries || 0} tamamlanmış çatdırılma`} value={formatPrice(stats.totalEarnings || 0)} />
+                <ActivityRow title="Ödəniləcək" meta="Hazır ödəniş" value={formatPrice(stats.availablePayout || 0)} />
+                <ActivityRow title="Ödənilib" meta="Tamamlanmış ödəniş" value={formatPrice(stats.paidPayout || 0)} />
               </>
             ) : null}
             {role === 'admin' ? (
               <>
                 <ActivityRow title="İstifadəçilər" meta="Alıcı / satıcı / kuryer" value={stats.users?.total || 0} />
                 <ActivityRow title="Gözləyən məhsullar" meta="Admin təsdiqi gözləyənlər" value={stats.products?.pending || 0} />
-                <ActivityRow title="Gəlir" meta="Tamamlanmış ödənişlər" value={formatPrice(stats.revenue || 0)} />
+                <ActivityRow title="Alıcı ödənişləri" meta="Tamamlanmış ödənişlər" value={formatPrice(stats.finance?.buyerPayments ?? stats.revenue ?? 0)} />
+                <ActivityRow title="Platforma komissiyası" meta="Ümumi komissiya" value={formatPrice(stats.finance?.platformFeeTotal || 0)} />
+                <ActivityRow title="Satıcı ödəniləcək" meta="Hazır satıcı ödənişləri" value={formatPrice(stats.finance?.sellerPayable || 0)} />
+                <ActivityRow title="Kuryer ödəniləcək" meta="Hazır kuryer ödənişləri" value={formatPrice(stats.finance?.courierPayable || 0)} />
               </>
             ) : null}
           </div>
@@ -278,6 +301,54 @@ export default function DashboardPage() {
             </section>
           ) : null}
 
+          {role === 'admin' ? (
+            <section className="panel space-y-4">
+              <div className="text-lg font-semibold text-ink">Ödənişlər (payout)</div>
+              {adminOrdersQuery.isLoading ? (
+                <LoadingGrid rows={1} />
+              ) : payableOrders.length === 0 ? (
+                <EmptyState title="Ödəniləcək yoxdur" description="Hazırda ödənilməsi gözlənilən satıcı və ya kuryer ödənişi yoxdur." />
+              ) : (
+                <div className="space-y-3">
+                  {payableOrders.map((order) => (
+                    <div key={order._id} className="rounded-2xl border border-slate-200 p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="font-semibold text-ink">#{order.orderNumber || order._id.slice(-6)}</div>
+                          <div className="mt-1 text-sm text-slate-500">
+                            {order.buyer?.firstName} {order.buyer?.lastName}
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {order.payout?.sellerPayoutStatus === 'available' ? (
+                            <button
+                              type="button"
+                              className="btn-secondary text-xs"
+                              disabled={markPayoutMutation.isPending}
+                              onClick={() => markPayoutMutation.mutate({ id: order._id, target: 'seller' })}
+                            >
+                              Satıcı: {formatPrice(order.payout.sellerEarning || 0)} — Ödə
+                            </button>
+                          ) : null}
+                          {order.payout?.courierPayoutStatus === 'available' ? (
+                            <button
+                              type="button"
+                              className="btn-secondary text-xs"
+                              disabled={markPayoutMutation.isPending}
+                              onClick={() => markPayoutMutation.mutate({ id: order._id, target: 'courier' })}
+                            >
+                              Kuryer: {formatPrice(order.payout.courierEarning || 0)} — Ödə
+                            </button>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          ) : null}
+
           {role === 'courier' ? (
             <section className="panel space-y-4">
               <div className="text-lg font-semibold text-ink">Xidmət regionları</div>
@@ -346,7 +417,8 @@ export default function DashboardPage() {
                               {order.items.map((it) => `${it.name} ×${it.quantity}`).join(', ')}
                             </div>
                           ) : null}
-                          <div className="mt-1 text-sm font-semibold text-forest">{formatPrice(order.totalAmount)}</div>
+                          <div className="mt-1 text-sm text-slate-500">Sifariş: {formatPrice(order.totalAmount)}</div>
+                          <div className="mt-0.5 text-sm font-semibold text-forest">Qazanc: {formatPrice(order.payout?.courierEarning || 0)}</div>
                         </div>
                         {order.status === 'out_for_delivery' ? (
                           <button

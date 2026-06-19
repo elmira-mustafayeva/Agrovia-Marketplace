@@ -12,6 +12,8 @@ import {
   PAYMENT_METHOD_LABELS,
   PAYMENT_STATUS_LABELS,
   SectionTitle,
+  StarRating,
+  Stars,
   StatusBadge,
   UNIT_LABELS,
   formatDate,
@@ -56,6 +58,25 @@ export default function OrdersPage() {
       showToast(err.response?.data?.message || 'Səbətə əlavə edilmədi.', type);
     },
   });
+
+  // Order-level courier rating form: { orderId, rating, comment }
+  const [courierForm, setCourierForm] = useState(null);
+  const courierReviewMutation = useMutation({
+    mutationFn: ({ orderId, rating, comment }) => api.addCourierReview(orderId, { rating, comment }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      setCourierForm(null);
+      showToast('Kuryer qiymətləndirildi.');
+    },
+    onError: (err) => showToast(err.response?.data?.message || 'Qiymətləndirmə alınmadı.', 'error'),
+  });
+  const submitCourierReview = () => {
+    if (!courierForm?.rating) {
+      showToast('Zəhmət olmasa ulduzla qiymətləndirin.', 'error');
+      return;
+    }
+    courierReviewMutation.mutate(courierForm);
+  };
 
   return (
     <section className="section-shell py-10">
@@ -187,6 +208,60 @@ export default function OrdersPage() {
                     );
                   })}
                 </div>
+
+                {/* Courier (delivery) rating — order-level */}
+                {order.status === 'delivered' && order.payment?.status === 'paid' && order.courier ? (
+                  <div className="rounded-2xl border border-slate-100 p-4">
+                    {order.deliveryReview?.rating ? (
+                      <div className="flex items-center gap-2 text-sm text-slate-600">
+                        <span>Kuryer qiymətləndirildi:</span>
+                        <Stars value={order.deliveryReview.rating} />
+                      </div>
+                    ) : courierForm?.orderId === order._id ? (
+                      <div className="space-y-3">
+                        <div className="text-sm font-medium text-slate-700">Kuryeri qiymətləndir</div>
+                        <StarRating
+                          value={courierForm.rating}
+                          onChange={(n) => setCourierForm((c) => ({ ...c, rating: n }))}
+                          disabled={courierReviewMutation.isPending}
+                        />
+                        <textarea
+                          className="input-shell min-h-20"
+                          placeholder="Kuryer haqqında rəyiniz (istəyə bağlı)..."
+                          value={courierForm.comment}
+                          onChange={(e) => setCourierForm((c) => ({ ...c, comment: e.target.value }))}
+                          disabled={courierReviewMutation.isPending}
+                        />
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            className="btn-primary text-xs"
+                            disabled={courierReviewMutation.isPending}
+                            onClick={submitCourierReview}
+                          >
+                            {courierReviewMutation.isPending ? 'Göndərilir...' : 'Göndər'}
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-secondary text-xs"
+                            disabled={courierReviewMutation.isPending}
+                            onClick={() => setCourierForm(null)}
+                          >
+                            Ləğv et
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        className="btn-secondary text-xs"
+                        onClick={() => setCourierForm({ orderId: order._id, rating: 0, comment: '' })}
+                      >
+                        Kuryeri qiymətləndir
+                      </button>
+                    )}
+                  </div>
+                ) : null}
 
                 {/* Footer totals */}
                 <div className="flex flex-col items-end gap-1 text-sm">

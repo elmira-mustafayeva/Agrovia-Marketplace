@@ -17,6 +17,19 @@ exports.getDashboard = async (req, res) => {
       status: 'out_for_delivery'
     });
 
+    // Earnings from the order ledger (delivered orders only)
+    const deliveredOrders = await Order.find({ courier: req.user.id, status: 'delivered' }).select('payout');
+    let totalEarnings = 0;
+    let availablePayout = 0;
+    let paidPayout = 0;
+    for (const o of deliveredOrders) {
+      const earning = o.payout?.courierEarning || 0;
+      totalEarnings += earning;
+      if (o.payout?.courierPayoutStatus === 'available') availablePayout += earning;
+      else if (o.payout?.courierPayoutStatus === 'paid') paidPayout += earning;
+    }
+    const round2 = (n) => Math.round(n * 100) / 100;
+
     res.status(200).json({
       success: true,
       stats: {
@@ -24,7 +37,11 @@ exports.getDashboard = async (req, res) => {
         isAvailable: user.courierInfo?.isAvailable,
         rating: user.courierInfo?.rating,
         totalDeliveries,
-        pendingDeliveries
+        pendingDeliveries,
+        completedDeliveries: deliveredOrders.length,
+        totalEarnings: round2(totalEarnings),
+        availablePayout: round2(availablePayout),
+        paidPayout: round2(paidPayout)
       }
     });
   } catch (error) {
@@ -252,6 +269,12 @@ exports.updateDeliveryStatus = async (req, res) => {
         } catch (stockErr) {
           console.error('Cash delivery stock deduction failed:', stockErr.message);
         }
+      }
+
+      // Earnings become payable once delivered.
+      if (order.payout) {
+        if (order.payout.sellerPayoutStatus === 'pending') order.payout.sellerPayoutStatus = 'available';
+        if (order.payout.courierPayoutStatus === 'pending') order.payout.courierPayoutStatus = 'available';
       }
 
       // Make courier available again

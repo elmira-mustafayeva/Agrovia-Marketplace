@@ -19,7 +19,9 @@ export const api = {
   moveWishlistToCart: (payload) => http.post('/wishlist/move-to-cart', payload).then(unwrap),
   getMyOrders: () => http.get('/orders/my').then(unwrap),
   createOrder: (payload) => http.post('/orders', payload).then(unwrap),
+  estimateDelivery: (payload) => http.post('/orders/estimate-delivery', payload).then(unwrap),
   updateOrderStatus: (id, status) => http.put(`/orders/${id}/status`, { status }).then(unwrap),
+  addCourierReview: (id, payload) => http.post(`/orders/${id}/courier-review`, payload).then(unwrap),
   createPaymentIntent: (payload) => http.post('/payments/create-intent', payload).then(unwrap),
   confirmPayment: (payload) => http.post('/payments/confirm', payload).then(unwrap),
   getReviews: (productId) => http.get(`/reviews/product/${productId}`).then(unwrap),
@@ -56,5 +58,6 @@ export const api = {
   adminUsers: () => http.get('/admin/users').then(unwrap),
   adminOrders: () => http.get('/admin/orders').then(unwrap),
   adminPendingProducts: () => http.get('/admin/products/pending').then(unwrap),
-  approveProduct: (id, payload) => http.put(`/admin/products/${id}/approve`, payload).then(unwrap)
+  approveProduct: (id, payload) => http.put(`/admin/products/${id}/approve`, payload).then(unwrap),
+  markPayout: (id, target) => http.put(`/admin/orders/${id}/payout`, { target }).then(unwrap)
 };

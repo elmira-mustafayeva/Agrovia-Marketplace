@@ -82,7 +82,14 @@ const productSchema = new mongoose.Schema(
       ref: 'Region',
       required: true
     },
-    
+
+    // Optional exact pickup/origin point (overrides seller pickup / region center for
+    // delivery distance). Defaults to the seller's pickup location at create time.
+    location: {
+      lat: Number,
+      lng: Number
+    },
+
     // Status
     status: {
       type: String,

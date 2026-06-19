@@ -10,7 +10,8 @@ const createNotification = require('../utils/createNotification');
 // @access  Private (Buyer)
 exports.addReview = async (req, res) => {
   try {
-    const { orderId, productId, productRating, productReview, courierRating, courierReview } = req.body;
+    // Courier rating is a separate, order-level concept (POST /api/orders/:id/courier-review).
+    const { orderId, productId, productRating, productReview } = req.body;
 
     const order = await Order.findOne({
       _id: orderId,
@@ -49,10 +50,7 @@ exports.addReview = async (req, res) => {
       product: productId,
       order: orderId,
       productRating,
-      productReview,
-      courierRating,
-      courierReview,
-      courier: order.courier
+      productReview
     });
 
     // Rating aggregation is best-effort: the review is the only critical write.
@@ -82,20 +80,6 @@ exports.addReview = async (req, res) => {
       await User.findByIdAndUpdate(product.seller, {
         'sellerInfo.rating': Math.round(avgSellerRating * 10) / 10
       });
-
-      // Update courier rating if provided
-      if (courierRating && order.courier) {
-        const courierReviews = (await Review.find({ courier: order.courier })).filter(
-          (r) => r.courierRating != null
-        );
-        const avgCourierRating = courierReviews.length
-          ? courierReviews.reduce((sum, r) => sum + r.courierRating, 0) / courierReviews.length
-          : 0;
-
-        await User.findByIdAndUpdate(order.courier, {
-          'courierInfo.rating': Math.round(avgCourierRating * 10) / 10
-        });
-      }
 
       // Notify the seller about the new review
       const preview = productReview.length > 80

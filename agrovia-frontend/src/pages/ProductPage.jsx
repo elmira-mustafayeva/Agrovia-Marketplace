@@ -5,34 +5,7 @@ import { useSelector } from 'react-redux';
 import { Heart, Package, ShoppingBag, Star, Truck } from 'lucide-react';
 import { api } from '../api/agroviaApi';
 import { useMyReviews, useOrders, useProduct, useReviews } from '../hooks/useAgroviaData';
-import { EmptyState, LoadingGrid, SectionTitle, Stars, formatDate, formatPrice, getProductImage } from '../components/Ui';
-
-// Clickable 5-star rating. Empty by default (value 0); user must actively choose.
-function StarRating({ value, onChange, disabled }) {
-  const [hover, setHover] = useState(0);
-  return (
-    <div className="flex items-center gap-1" role="radiogroup" aria-label="Ulduz qiymətləndirmə">
-      {[1, 2, 3, 4, 5].map((n) => {
-        const filled = (hover || value) >= n;
-        return (
-          <button
-            key={n}
-            type="button"
-            disabled={disabled}
-            aria-label={`${n} ulduz`}
-            aria-pressed={value === n}
-            onClick={() => onChange(n)}
-            onMouseEnter={() => setHover(n)}
-            onMouseLeave={() => setHover(0)}
-            className="rounded p-0.5 transition disabled:cursor-not-allowed"
-          >
-            <Star className={`h-7 w-7 ${filled ? 'fill-amber-400 text-amber-400' : 'text-slate-300'}`} />
-          </button>
-        );
-      })}
-    </div>
-  );
-}
+import { EmptyState, LoadingGrid, SectionTitle, StarRating, Stars, formatDate, formatPrice, getProductImage } from '../components/Ui';
 
 export default function ProductPage() {
   const { id } = useParams();

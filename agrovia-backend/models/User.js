@@ -74,6 +74,11 @@ const userSchema = new mongoose.Schema(
       businessName: String,
       businessDescription: String,
       taxNumber: String,
+      // Exact pickup/origin point for delivery distance (primary seller origin).
+      pickupLocation: {
+        lat: Number,
+        lng: Number
+      },
       saleType: {
         type: String,
         enum: ['retail', 'wholesale', 'both'],

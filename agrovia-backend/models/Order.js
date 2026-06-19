@@ -73,6 +73,13 @@ const orderSchema = new mongoose.Schema(
       default: 0,
       min: 0
     },
+    // Distance-based delivery snapshot (computed at order creation, never recalculated).
+    // deliveryFee above mirrors delivery.price for backward compatibility.
+    delivery: {
+      distanceKm: { type: Number, default: 0 },
+      durationMinutes: { type: Number, default: 0 },
+      price: { type: Number, default: 0 }
+    },
     totalAmount: {
       type: Number,
       required: true,
@@ -120,6 +127,36 @@ const orderSchema = new mongoose.Schema(
     stockDeducted: {
       type: Boolean,
       default: false
+    },
+
+    // Financial ledger — snapshotted at order creation, never recalculated afterwards.
+    // Internal accounting only (Stripe still pays the platform account; no Stripe Connect).
+    payout: {
+      productSubtotal: { type: Number, default: 0 },
+      deliveryFee: { type: Number, default: 0 },
+      platformCommissionRate: { type: Number, default: 0 },
+      platformFee: { type: Number, default: 0 },
+      sellerEarning: { type: Number, default: 0 },
+      courierEarning: { type: Number, default: 0 },
+      sellerPayoutStatus: {
+        type: String,
+        enum: ['pending', 'available', 'paid'],
+        default: 'pending'
+      },
+      courierPayoutStatus: {
+        type: String,
+        enum: ['pending', 'available', 'paid'],
+        default: 'pending'
+      },
+      sellerPaidAt: Date,
+      courierPaidAt: Date
+    },
+
+    // Order-level courier (delivery) rating — separate from product Review.
+    deliveryReview: {
+      rating: { type: Number, min: 1, max: 5 },
+      comment: { type: String, maxlength: 500 },
+      createdAt: Date
     },
 
     // Order Status
