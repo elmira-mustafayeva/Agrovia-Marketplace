@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, ShoppingCart } from 'lucide-react';
+import { AlertTriangle, MessageCircle, ShoppingCart } from 'lucide-react';
 import { api } from '../api/agroviaApi';
 import { useMyReviews, useOrders } from '../hooks/useAgroviaData';
+import { useOpenConversation } from '../hooks/useOpenConversation';
 import {
   EmptyState,
   LoadingGrid,
@@ -32,6 +33,7 @@ export default function OrdersPage() {
   const myReviewsQuery = useMyReviews(Boolean(user));
   const orders = ordersQuery.data || [];
   const queryClient = useQueryClient();
+  const openChat = useOpenConversation();
 
   const [toast, setToast] = useState({ message: '', type: '' });
   const showToast = (message, type = 'success') => {
@@ -141,6 +143,20 @@ export default function OrdersPage() {
                     Bu sifariş üçün ödəniş tamamlanmayıb.
                   </div>
                 ) : null}
+
+                {/* Chat actions */}
+                <div className="flex flex-wrap gap-2">
+                  {order.items?.[0]?.product?._id ? (
+                    <button type="button" className="btn-secondary text-xs" onClick={() => openChat({ type: 'buyer_seller', productId: order.items[0].product._id })}>
+                      <MessageCircle className="h-3.5 w-3.5" />Satıcıya yaz
+                    </button>
+                  ) : null}
+                  {order.courier ? (
+                    <button type="button" className="btn-secondary text-xs" onClick={() => openChat({ type: 'buyer_courier', orderId: order._id })}>
+                      <MessageCircle className="h-3.5 w-3.5" />Kuryerə yaz
+                    </button>
+                  ) : null}
+                </div>
 
                 {/* Items */}
                 <div className="space-y-3">

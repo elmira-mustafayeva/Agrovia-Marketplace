@@ -2,9 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
-import { Heart, Package, ShoppingBag, Star, Truck } from 'lucide-react';
+import { Heart, MessageCircle, Package, ShoppingBag, Star, Truck } from 'lucide-react';
 import { api } from '../api/agroviaApi';
 import { useMyReviews, useOrders, useProduct, useReviews } from '../hooks/useAgroviaData';
+import { useOpenConversation } from '../hooks/useOpenConversation';
 import { EmptyState, LoadingGrid, SectionTitle, StarRating, Stars, formatDate, formatPrice, getProductImage } from '../components/Ui';
 
 export default function ProductPage() {
@@ -27,6 +28,7 @@ export default function ProductPage() {
     setTimeout(() => setProductToast({ message: '', type: '' }), 3000);
   };
   const queryClient = useQueryClient();
+  const openChat = useOpenConversation();
   const productQuery = useProduct(id);
   const reviewsQuery = useReviews(id);
   const ordersQuery = useOrders(!!user);
@@ -214,6 +216,15 @@ export default function ProductPage() {
               <Heart className="h-4 w-4" />{addToWishlistMutation.isPending ? 'Əlavə edilir...' : 'Wishlist'}
             </button>
           </div>
+          {user && user.role === 'buyer' ? (
+            <button
+              type="button"
+              className="btn-secondary w-full"
+              onClick={() => openChat({ type: 'buyer_seller', productId: product._id })}
+            >
+              <MessageCircle className="h-4 w-4" />Satıcıya yaz
+            </button>
+          ) : null}
 
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-2xl bg-slate-50 p-4">

@@ -1,8 +1,10 @@
+import { useEffect } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import MainLayout from './layouts/MainLayout';
 import DashboardLayout from './layouts/DashboardLayout';
 import ProtectedRoute from './components/ProtectedRoute';
+import { connectSocket, disconnectSocket } from './api/socketClient';
 import HomePage from './pages/HomePage';
 import ShopPage from './pages/ShopPage';
 import ProductPage from './pages/ProductPage';
@@ -16,6 +18,7 @@ import ResetPasswordPage from './pages/ResetPasswordPage';
 import VerifyEmailPage from './pages/VerifyEmailPage';
 import DashboardPage from './pages/DashboardPage';
 import SellerDashboard from './pages/SellerDashboard';
+import MessagesPage from './pages/MessagesPage';
 import NotFoundPage from './pages/NotFoundPage';
 
 function DashboardRoute() {
@@ -29,6 +32,15 @@ function DashboardRoute() {
 }
 
 export default function App() {
+  const { token } = useSelector((state) => state.auth);
+
+  // Maintain one authenticated socket connection while logged in.
+  useEffect(() => {
+    if (token) connectSocket(token);
+    else disconnectSocket();
+    return () => { if (!token) disconnectSocket(); };
+  }, [token]);
+
   return (
     <MainLayout>
       <Routes>
@@ -69,6 +81,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <DashboardRoute />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/messages"
+          element={
+            <ProtectedRoute>
+              <MessagesPage />
             </ProtectedRoute>
           }
         />

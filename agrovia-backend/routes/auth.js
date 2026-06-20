@@ -19,6 +19,7 @@ const {
 
 const { protect } = require('../middleware/auth');
 const { validateRegister, validateLogin } = require('../middleware/validators');
+const { authLimiter } = require('../middleware/rateLimiters');
 
 // Rate limiters
 const loginLimiter = rateLimit({
@@ -55,7 +56,7 @@ const resetLimiter = rateLimit({
 });
 
 // ─── Public routes ───────────────────────────────────────────────────────────
-router.post('/register', validateRegister, register);
+router.post('/register', authLimiter, validateRegister, register);
 router.post('/login', loginLimiter, validateLogin, login);
 
 // Email verification
@@ -64,7 +65,7 @@ router.post('/resend-verification-email', resetLimiter, resendVerificationEmail)
 
 // Password reset
 router.post('/forgot-password', resetLimiter, forgotPassword);
-router.put('/reset-password/:token', resetPassword);
+router.put('/reset-password/:token', authLimiter, resetPassword);
 
 // ─── Protected routes ────────────────────────────────────────────────────────
 router.get('/me', protect, getMe);

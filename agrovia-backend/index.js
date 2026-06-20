@@ -1,11 +1,13 @@
 const express = require('express');
+const http = require('http');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const dns = require('dns');
 const dotenv = require('dotenv');
 const morgan = require('morgan');
 const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
+const { apiLimiter, conversationLimiter } = require('./middleware/rateLimiters');
+const initSocket = require('./socket');
 
 // ENV
 dotenv.config();
@@ -40,18 +42,8 @@ app.use(express.json({
 }));
 app.use(express.urlencoded({ extended: true }));
 
-// Rate limit
-const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: {
-    success: false,
-    message: 'Çox sayda sorğu göndərildi. Bir az sonra yenidən cəhd edin.'
-  }
-});
-
+// Rate limit — general API budget (conversations are skipped here; they use their own).
+// OPTIONS preflight is excluded so CORS is never throttled.
 app.use('/api', apiLimiter);
 
 // Route faylları
@@ -70,6 +62,7 @@ const courierRoutes = require('./routes/courier');
 const adminRoutes = require('./routes/admin');
 const notificationRoutes = require('./routes/notifications');
 const paymentRoutes = require('./routes/payments');
+const conversationRoutes = require('./routes/conversations');
 
 // Health check
 app.get('/', (req, res) => {
@@ -105,6 +98,7 @@ app.use('/api/courier', courierRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/conversations', conversationLimiter, conversationRoutes);
 
 // 404 handler
 app.use((req, res) => {
@@ -124,12 +118,18 @@ const connectDB = require('./config/database');
 // Server start
 const PORT = process.env.PORT || 5000;
 
+// Wrap the Express app in an HTTP server so Socket.io can share the same port.
+// All existing middleware/routes are unchanged — only the listen mechanism differs.
+const server = http.createServer(app);
+initSocket(server);
+
 const startServer = async () => {
   await connectDB();
 
-  app.listen(PORT, () => {
+  server.listen(PORT, () => {
     console.log(`Server ${PORT} portunda işləyir`);
     console.log(`API URL: http://localhost:${PORT}`);
+    console.log(`Socket.io: aktiv`);
     console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
   });
 };

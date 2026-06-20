@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api/agroviaApi';
 import { useRegions } from '../hooks/useAgroviaData';
+import { useOpenConversation } from '../hooks/useOpenConversation';
 import {
   ActivityRow,
   EmptyState,
@@ -14,7 +16,7 @@ import {
   formatPrice,
   roleLabel,
 } from '../components/Ui';
-import { ChartColumn, PackageSearch, Truck, Users, Wallet } from 'lucide-react';
+import { ChartColumn, MessageCircle, PackageSearch, Truck, Users, Wallet } from 'lucide-react';
 
 const dashboardQueries = {
   courier: api.courierDashboard,
@@ -32,7 +34,16 @@ export default function DashboardPage() {
   const role = user?.role || 'buyer';
   const queryFn = dashboardQueries[role] || api.adminDashboard;
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const openChat = useOpenConversation();
   const [selectedProduct, setSelectedProduct] = useState(null);
+
+  const supportQuery = useQuery({
+    queryKey: ['support-conversations'],
+    queryFn: () => api.getConversations({ type: 'support' }),
+    enabled: role === 'admin',
+  });
+  const supportConversations = supportQuery.data?.conversations || [];
 
   const dashboardQuery = useQuery({
     queryKey: ['dashboard', role],
@@ -349,6 +360,40 @@ export default function DashboardPage() {
             </section>
           ) : null}
 
+          {role === 'admin' ? (
+            <section className="panel space-y-4">
+              <div className="text-lg font-semibold text-ink">Dəstək söhbətləri</div>
+              {supportQuery.isLoading ? (
+                <LoadingGrid rows={1} />
+              ) : supportConversations.length === 0 ? (
+                <EmptyState title="Dəstək sorğusu yoxdur" description="Hazırda açıq dəstək söhbəti yoxdur." />
+              ) : (
+                <div className="space-y-3">
+                  {supportConversations.map((c) => {
+                    const unread = c.unread?.admin || 0;
+                    const name = `${c.user?.firstName || ''} ${c.user?.lastName || ''}`.trim() || 'İstifadəçi';
+                    return (
+                      <div key={c._id} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 p-4">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-ink">{name}</span>
+                            {unread > 0 ? (
+                              <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-forest px-1.5 text-xs font-semibold text-white">{unread}</span>
+                            ) : null}
+                          </div>
+                          <div className="mt-0.5 truncate text-xs text-slate-500">{c.lastMessage || 'Söhbət başladıldı'}</div>
+                        </div>
+                        <button type="button" className="btn-secondary text-xs" onClick={() => navigate(`/messages?c=${c._id}`)}>
+                          <MessageCircle className="h-3.5 w-3.5" />Cavabla
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </section>
+          ) : null}
+
           {role === 'courier' ? (
             <section className="panel space-y-4">
               <div className="text-lg font-semibold text-ink">Xidmət regionları</div>
@@ -430,6 +475,14 @@ export default function DashboardPage() {
                             {markDeliveredMutation.isPending ? 'Gözləyin...' : 'Çatdırıldı'}
                           </button>
                         ) : null}
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <button type="button" className="btn-secondary text-xs" onClick={() => openChat({ type: 'buyer_courier', orderId: order._id })}>
+                          <MessageCircle className="h-3.5 w-3.5" />Alıcıya yaz
+                        </button>
+                        <button type="button" className="btn-secondary text-xs" onClick={() => openChat({ type: 'seller_courier', orderId: order._id })}>
+                          <MessageCircle className="h-3.5 w-3.5" />Satıcıya yaz
+                        </button>
                       </div>
                     </div>
                   ))}

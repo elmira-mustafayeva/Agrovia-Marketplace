@@ -24,6 +24,8 @@ import {
   SlidersHorizontal,
   Sprout,
   Star,
+  MessageCircle,
+  LifeBuoy,
   Trash2,
   Upload,
   User,
@@ -46,6 +48,7 @@ import {
   getProductImage,
 } from '../components/Ui';
 import LocationPicker from '../components/LocationPicker';
+import { useOpenConversation } from '../hooks/useOpenConversation';
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
@@ -271,6 +274,7 @@ function StatsRow({ stats }) {
 function Sidebar({ section, onSection }) {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const openChat = useOpenConversation();
 
   return (
     <aside className="flex w-56 shrink-0 flex-col overflow-y-auto border-r border-slate-200 bg-white">
@@ -301,6 +305,21 @@ function Sidebar({ section, onSection }) {
             </button>
           );
         })}
+
+        <button
+          type="button"
+          onClick={() => navigate('/messages')}
+          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-ink"
+        >
+          <MessageCircle className="h-4 w-4 shrink-0" />Mesajlar
+        </button>
+        <button
+          type="button"
+          onClick={() => openChat({ type: 'support' })}
+          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-ink"
+        >
+          <LifeBuoy className="h-4 w-4 shrink-0" />Dəstək
+        </button>
 
         <div className="my-2 h-px bg-slate-100" />
 
@@ -1326,6 +1345,7 @@ function OrderDetailModal({ orderId, onClose }) {
 
 function OrdersSection({ orders, isLoading }) {
   const updateStatus = useUpdateOrderStatus();
+  const openChat = useOpenConversation();
   const [detailOrderId, setDetailOrderId] = useState(null);
 
   if (isLoading) {
@@ -1409,6 +1429,22 @@ function OrdersSection({ orders, isLoading }) {
                             </div>
                           ) : null}
                         </>
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => openChat({ type: 'buyer_seller', orderId: order._id })}
+                        className="flex w-full items-center gap-1.5 rounded-xl bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-200"
+                      >
+                        <MessageCircle className="h-3 w-3 shrink-0" />Alıcıya yaz
+                      </button>
+                      {order.courier ? (
+                        <button
+                          type="button"
+                          onClick={() => openChat({ type: 'seller_courier', orderId: order._id })}
+                          className="flex w-full items-center gap-1.5 rounded-xl bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-200"
+                        >
+                          <MessageCircle className="h-3 w-3 shrink-0" />Kuryerə yaz
+                        </button>
                       ) : null}
                     </div>
                   </td>

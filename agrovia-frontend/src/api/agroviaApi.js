@@ -59,5 +59,10 @@ export const api = {
   adminOrders: () => http.get('/admin/orders').then(unwrap),
   adminPendingProducts: () => http.get('/admin/products/pending').then(unwrap),
   approveProduct: (id, payload) => http.put(`/admin/products/${id}/approve`, payload).then(unwrap),
-  markPayout: (id, target) => http.put(`/admin/orders/${id}/payout`, { target }).then(unwrap)
+  markPayout: (id, target) => http.put(`/admin/orders/${id}/payout`, { target }).then(unwrap),
+  getConversations: (params = {}) => http.get('/conversations', { params }).then(unwrap),
+  createConversation: (payload) => http.post('/conversations', payload).then(unwrap),
+  getMessages: (id) => http.get(`/conversations/${id}/messages`).then(unwrap),
+  sendMessage: (id, payload) => http.post(`/conversations/${id}/messages`, payload).then(unwrap),
+  markConversationRead: (id) => http.put(`/conversations/${id}/read`).then(unwrap)
 };
