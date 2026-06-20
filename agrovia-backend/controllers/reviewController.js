@@ -45,12 +45,17 @@ exports.addReview = async (req, res) => {
       });
     }
 
+    const trimmedReview = (productReview || '').trim();
+    if (!trimmedReview) {
+      return res.status(400).json({ success: false, message: 'Rəy mətni boş ola bilməz' });
+    }
+
     const review = await Review.create({
       user: req.user.id,
       product: productId,
       order: orderId,
       productRating,
-      productReview
+      productReview: trimmedReview,
     });
 
     // Rating aggregation is best-effort: the review is the only critical write.
@@ -82,9 +87,9 @@ exports.addReview = async (req, res) => {
       });
 
       // Notify the seller about the new review
-      const preview = productReview.length > 80
-        ? productReview.substring(0, 80) + '...'
-        : productReview;
+      const preview = trimmedReview.length > 80
+        ? trimmedReview.substring(0, 80) + '...'
+        : trimmedReview;
       await createNotification({
         recipient: product.seller,
         sender: req.user.id,

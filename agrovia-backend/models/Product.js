@@ -21,7 +21,8 @@ const productSchema = new mongoose.Schema(
       type: String,
       required: [true, 'Məhsul adı tələb olunur'],
       trim: true,
-      maxlength: [50, 'Məhsul adı maksimum 50 simvol ola bilər']
+      minlength: [2, 'Məhsul adı ən az 2 simvol olmalıdır'],
+      maxlength: [30, 'Məhsul adı maksimum 30 simvol ola bilər']
     },
     description: {
       type: String,
@@ -33,7 +34,8 @@ const productSchema = new mongoose.Schema(
     price: {
       type: Number,
       required: [true, 'Qiymət tələb olunur'],
-      min: [0, 'Qiymət mənfi ola bilməz']
+      min: [0.001, 'Qiymət sıfırdan böyük olmalıdır'],
+      max: [9999999.99, 'Qiymət həddindən yüksəkdir']
     },
     unit: {
       type: String,
@@ -58,6 +60,7 @@ const productSchema = new mongoose.Schema(
       type: Number,
       required: [true, 'Stok miqdarı tələb olunur'],
       min: [0, 'Stok mənfi ola bilməz'],
+      max: [9999999, 'Stok miqdarı həddindən yüksəkdir'],
       default: 0
     },
     

@@ -77,7 +77,14 @@ export default function OrdersPage() {
       showToast('Zəhmət olmasa ulduzla qiymətləndirin.', 'error');
       return;
     }
-    courierReviewMutation.mutate(courierForm);
+    if (courierForm.comment && !courierForm.comment.trim()) {
+      showToast('Rəy mətni yalnız boşluqlardan ibarət ola bilməz.', 'error');
+      return;
+    }
+    courierReviewMutation.mutate({
+      ...courierForm,
+      comment: courierForm.comment?.trim() || undefined,
+    });
   };
 
   return (

@@ -17,6 +17,7 @@ const messageSchema = new mongoose.Schema(
       type: String,
       required: true,
       trim: true,
+      minlength: [5, 'Mesaj boş ola bilməz'],
       maxlength: [2000, 'Mesaj maksimum 2000 simvol ola bilər']
     },
     attachments: [{

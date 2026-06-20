@@ -177,17 +177,25 @@ export default function ChatPanel({ conversationId, myId }) {
           Söhbət bağlanıb (sifariş tamamlanıb). Tarixçəni görə bilərsiniz.
         </div>
       ) : (
-        <div className="flex items-center gap-2 border-t border-slate-100 pt-3">
-          <input
-            className="input-shell flex-1"
-            placeholder="Mesaj yazın..."
-            value={text}
-            onChange={(e) => { setText(e.target.value); emitTyping(); }}
-            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
-          />
-          <button type="button" className="btn-primary px-4" onClick={send} disabled={!text.trim()}>
-            <Send className="h-4 w-4" />
-          </button>
+        <div className="flex flex-col gap-1 border-t border-slate-100 pt-3">
+          <div className="flex items-center gap-2">
+            <input
+              className="input-shell flex-1"
+              placeholder="Mesaj yazın..."
+              value={text}
+              maxLength={1000}
+              onChange={(e) => { setText(e.target.value); emitTyping(); }}
+              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
+            />
+            <button type="button" className="btn-primary px-4" onClick={send} disabled={!text.trim()}>
+              <Send className="h-4 w-4" />
+            </button>
+          </div>
+          {text.length > 900 && (
+            <p className={`text-right text-xs ${text.length >= 1000 ? 'text-red-500' : 'text-slate-400'}`}>
+              {text.length}/1000
+            </p>
+          )}
         </div>
       )}
     </div>

@@ -131,6 +131,14 @@ exports.updateCartItem = async (req, res) => {
     const { quantity } = req.body;
     const { itemId } = req.params;
 
+    const qty = Number(quantity);
+    if (isNaN(qty) || qty <= 0) {
+      return res.status(400).json({ success: false, message: 'Miqdar sıfırdan böyük olmalıdır' });
+    }
+    if (qty > 9999) {
+      return res.status(400).json({ success: false, message: 'Miqdar həddindən yüksəkdir (maks. 9999)' });
+    }
+
     let cart = await Cart.findOne({ user: req.user.id });
 
     if (!cart) {

@@ -289,6 +289,7 @@ export default function ProductPage() {
               <textarea
                 className="input-shell min-h-40"
                 placeholder="Məhsul haqqında rəyinizi yazın..."
+                maxLength={1000}
                 value={reviewNote}
                 onChange={(event) => setReviewNote(event.target.value)}
                 disabled={addReviewMutation.isPending}

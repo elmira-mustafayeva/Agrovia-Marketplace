@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -48,6 +50,9 @@ import {
   getProductImage,
 } from '../components/Ui';
 import LocationPicker from '../components/LocationPicker';
+import PhoneInput from '../components/PhoneInput';
+import QuantityInput from '../components/QuantityInput';
+import { productSchema } from '../lib/validation';
 import { useOpenConversation } from '../hooks/useOpenConversation';
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
@@ -108,7 +113,7 @@ const EMPTY_FILTERS = { status: 'all', saleType: 'all', category: 'all', stock: 
 
 // ─── Shared helpers ────────────────────────────────────────────────────────────
 
-function FormField({ label, helper, required, children }) {
+function FormField({ label, helper, required, error, children }) {
   return (
     <div className="space-y-1.5">
       <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -117,6 +122,7 @@ function FormField({ label, helper, required, children }) {
       </label>
       {helper ? <p className="text-[11px] leading-relaxed text-slate-400">{helper}</p> : null}
       {children}
+      {error?.message && <p className="helper-error">{error.message}</p>}
     </div>
   );
 }
@@ -630,26 +636,36 @@ function FilterPanel({ filters, setFilters, categories, onClear }) {
 
 function EditProductModal({ product, categories, regions, onClose, onSuccess }) {
   const queryClient = useQueryClient();
-  const [form, setForm] = useState({
-    name:             product.name ?? '',
-    description:      product.description ?? '',
-    price:            String(product.price ?? ''),
-    unit:             product.unit ?? 'kg',
-    saleType:         product.saleType ?? 'retail',
-    minOrderQuantity: String(product.minOrderQuantity ?? '1'),
-    stockQuantity:    String(product.stockQuantity ?? '0'),
-    category:         product.category?._id ?? product.category ?? '',
-    region:           product.region?._id ?? product.region ?? '',
-    discountPct:      String(product.discount?.percentage ?? '0'),
-  });
   const [tags, setTags] = useState(Array.isArray(product.tags) ? product.tags : []);
   const [location, setLocation] = useState(
     product.location && Number.isFinite(product.location.lat)
       ? { lat: product.location.lat, lng: product.location.lng }
       : null
   );
+  // region is not in productSchema — keep separate
+  const [region, setRegion] = useState(product.region?._id ?? product.region ?? '');
   const [msg, setMsg] = useState('');
   const [ok, setOk] = useState(false);
+
+  const {
+    register,
+    handleSubmit,
+    control,
+    formState: { errors: fe },
+  } = useForm({
+    resolver: zodResolver(productSchema),
+    defaultValues: {
+      name:             product.name ?? '',
+      description:      product.description ?? '',
+      price:            product.price ?? 0,
+      unit:             product.unit ?? 'kg',
+      saleType:         product.saleType ?? 'retail',
+      minOrderQuantity: product.minOrderQuantity ?? 1,
+      stockQuantity:    product.stockQuantity ?? 0,
+      category:         product.category?._id ?? product.category ?? '',
+      discountPercentage: product.discount?.percentage ?? 0,
+    },
+  });
 
   const mutation = useMutation({
     mutationFn: fd => api.updateProduct(product._id, fd),
@@ -667,60 +683,70 @@ function EditProductModal({ product, categories, regions, onClose, onSuccess }) 
     },
   });
 
-  const sf = (f, v) => setForm(p => ({ ...p, [f]: v }));
-
-  const handleSubmit = e => {
-    e.preventDefault();
+  const onSubmit = handleSubmit(data => {
     setMsg('');
     const fd = new FormData();
-    fd.append('name',             form.name.trim());
-    fd.append('description',      form.description.trim());
-    fd.append('price',            form.price);
-    fd.append('unit',             form.unit);
-    fd.append('saleType',         form.saleType);
-    fd.append('minOrderQuantity', form.minOrderQuantity);
-    fd.append('stockQuantity',    form.stockQuantity);
-    fd.append('category',         form.category);
-    fd.append('region',           form.region);
+    fd.append('name',             data.name);
+    fd.append('description',      data.description);
+    fd.append('price',            data.price);
+    fd.append('unit',             data.unit);
+    fd.append('saleType',         data.saleType);
+    fd.append('minOrderQuantity', data.minOrderQuantity);
+    fd.append('stockQuantity',    data.stockQuantity);
+    fd.append('category',         data.category);
+    fd.append('region',           region);
     fd.append('tags',             JSON.stringify(tags));
-    fd.append('discount',         JSON.stringify({ percentage: Number(form.discountPct) || 0 }));
-    // Send the origin override (or null to clear). Backend validates the coordinates.
+    fd.append('discount',         JSON.stringify({ percentage: data.discountPercentage || 0 }));
     fd.append('location',         JSON.stringify(location));
     mutation.mutate(fd);
-  };
+  });
 
   return (
     <Modal title="Məhsulu redaktə et" onClose={onClose} width="max-w-2xl">
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={onSubmit} noValidate>
         <div className="space-y-5 px-6 py-5">
           <div className="grid gap-4 sm:grid-cols-2">
-            <FormField label="Məhsul adı" required>
-              <input className="input-shell w-full" value={form.name} onChange={e => sf('name', e.target.value)} required />
+            <FormField label="Məhsul adı" required error={fe.name}>
+              <input
+                className={`input-shell w-full ${fe.name ? 'input-error' : ''}`}
+                {...register('name')}
+              />
             </FormField>
-            <FormField label="Qiymət (AZN)" required>
-              <input type="number" min="0" step="0.01" className="input-shell w-full" value={form.price} onChange={e => sf('price', e.target.value)} required />
+            <FormField label="Qiymət (AZN)" required error={fe.price}>
+              <input
+                type="number" min="0" step="0.01"
+                className={`input-shell w-full ${fe.price ? 'input-error' : ''}`}
+                {...register('price', { valueAsNumber: true })}
+              />
             </FormField>
           </div>
 
-          <FormField label="Təsvir" required>
-            <textarea className="input-shell w-full min-h-[80px] resize-y" value={form.description} onChange={e => sf('description', e.target.value)} required />
+          <FormField label="Təsvir" required error={fe.description}>
+            <textarea
+              className={`input-shell w-full min-h-[80px] resize-y ${fe.description ? 'input-error' : ''}`}
+              {...register('description')}
+            />
           </FormField>
 
           <div className="grid gap-4 sm:grid-cols-3">
-            <FormField label="Ölçü vahidi" required>
-              <select className="input-shell w-full" value={form.unit} onChange={e => sf('unit', e.target.value)}>
+            <FormField label="Ölçü vahidi" required error={fe.unit}>
+              <select className="input-shell w-full" {...register('unit')}>
                 {Object.entries(UNIT_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
               </select>
             </FormField>
-            <FormField label="Satış tipi" required>
-              <select className="input-shell w-full" value={form.saleType} onChange={e => sf('saleType', e.target.value)}>
+            <FormField label="Satış tipi" required error={fe.saleType}>
+              <select className="input-shell w-full" {...register('saleType')}>
                 <option value="retail">Pərakəndə</option>
                 <option value="wholesale">Topdan</option>
                 <option value="both">Hər ikisi</option>
               </select>
             </FormField>
-            <FormField label="Endirim (%)">
-              <input type="number" min="0" max="100" className="input-shell w-full" value={form.discountPct} onChange={e => sf('discountPct', e.target.value)} />
+            <FormField label="Endirim (%)" error={fe.discountPercentage}>
+              <input
+                type="number" min="0" max="100"
+                className="input-shell w-full"
+                {...register('discountPercentage', { valueAsNumber: true })}
+              />
             </FormField>
           </div>
 
@@ -733,14 +759,29 @@ function EditProductModal({ product, categories, regions, onClose, onSuccess }) 
           </FormField>
 
           <div className="grid gap-4 sm:grid-cols-3">
-            <FormField label="Min. sifariş" required>
-              <input type="number" min="1" className="input-shell w-full" value={form.minOrderQuantity} onChange={e => sf('minOrderQuantity', e.target.value)} required />
+            <FormField label="Min. sifariş" required error={fe.minOrderQuantity}>
+              <Controller
+                name="minOrderQuantity"
+                control={control}
+                render={({ field }) => (
+                  <QuantityInput value={field.value} min={0.001} max={9999999} onChange={field.onChange} />
+                )}
+              />
             </FormField>
-            <FormField label="Stok miqdarı" required>
-              <input type="number" min="0" className="input-shell w-full" value={form.stockQuantity} onChange={e => sf('stockQuantity', e.target.value)} required />
+            <FormField label="Stok miqdarı" required error={fe.stockQuantity}>
+              <Controller
+                name="stockQuantity"
+                control={control}
+                render={({ field }) => (
+                  <QuantityInput value={field.value} min={0} max={9999999} onChange={field.onChange} />
+                )}
+              />
             </FormField>
-            <FormField label="Kateqoriya" required>
-              <select className="input-shell w-full" value={form.category} onChange={e => sf('category', e.target.value)} required>
+            <FormField label="Kateqoriya" required error={fe.category}>
+              <select
+                className={`input-shell w-full ${fe.category ? 'input-error' : ''}`}
+                {...register('category')}
+              >
                 <option value="">Seçin</option>
                 {categories.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
               </select>
@@ -748,7 +789,12 @@ function EditProductModal({ product, categories, regions, onClose, onSuccess }) 
           </div>
 
           <FormField label="Region" required>
-            <select className="input-shell w-full" value={form.region} onChange={e => sf('region', e.target.value)} required>
+            <select
+              className="input-shell w-full"
+              value={region}
+              onChange={e => setRegion(e.target.value)}
+              required
+            >
               <option value="">Seçin</option>
               {regions.map(r => <option key={r._id} value={r._id}>{r.name}</option>)}
             </select>
@@ -1045,7 +1091,6 @@ function ProductsSection({ products, categories, regions, isLoading, stats }) {
 
 function AddProductForm({ categories, sellerRegion, onSuccess, onCancel }) {
   const queryClient = useQueryClient();
-  const [form, setForm] = useState(EMPTY_FORM);
   const [tags, setTags] = useState([]);
   const [images, setImages] = useState([]);
   const [videos, setVideos] = useState([]);
@@ -1053,12 +1098,31 @@ function AddProductForm({ categories, sellerRegion, onSuccess, onCancel }) {
   const [msg, setMsg] = useState('');
   const [success, setSuccess] = useState(false);
 
+  const {
+    register,
+    handleSubmit,
+    control,
+    watch,
+    setValue,
+    reset,
+    formState: { errors: fe },
+  } = useForm({
+    resolver: zodResolver(productSchema),
+    defaultValues: {
+      name: '', description: '', price: 0, unit: 'kg',
+      saleType: 'retail', minOrderQuantity: 1,
+      stockQuantity: 1, category: '', discountPercentage: 0,
+    },
+  });
+
+  const saleType = watch('saleType');
+
   const mutation = useMutation({
     mutationFn: api.createSellerProduct,
     onSuccess: data => {
       setMsg(data?.message || 'Məhsul əlavə olundu. Admin təsdiqini gözləyir.');
       setSuccess(true);
-      setForm(EMPTY_FORM);
+      reset();
       setTags([]);
       setImages([]);
       setVideos([]);
@@ -1073,10 +1137,7 @@ function AddProductForm({ categories, sellerRegion, onSuccess, onCancel }) {
     },
   });
 
-  const sf = (f, v) => setForm(p => ({ ...p, [f]: v }));
-
-  const handleSubmit = e => {
-    e.preventDefault();
+  const onSubmit = handleSubmit(data => {
     setMsg('');
     setSuccess(false);
     if (!sellerRegion?._id) {
@@ -1085,29 +1146,28 @@ function AddProductForm({ categories, sellerRegion, onSuccess, onCancel }) {
     }
     if (images.length === 0) {
       setMsg('Ən azı bir məhsul şəkli əlavə edin.');
-      setSuccess(false);
       return;
     }
     const fd = new FormData();
-    fd.append('name',             form.name.trim());
-    fd.append('description',      form.description.trim());
-    fd.append('price',            form.price);
-    fd.append('unit',             form.unit);
-    fd.append('saleType',         form.saleType);
-    fd.append('minOrderQuantity', form.minOrderQuantity);
-    fd.append('stockQuantity',    form.stockQuantity);
-    fd.append('category',         form.category);
+    fd.append('name',             data.name);
+    fd.append('description',      data.description);
+    fd.append('price',            data.price);
+    fd.append('unit',             data.unit);
+    fd.append('saleType',         data.saleType);
+    fd.append('minOrderQuantity', data.minOrderQuantity);
+    fd.append('stockQuantity',    data.stockQuantity);
+    fd.append('category',         data.category);
     fd.append('region',           sellerRegion._id);
     fd.append('tags',             JSON.stringify(tags));
-    fd.append('discount',         JSON.stringify({ percentage: Number(form.discountPercentage) || 0 }));
+    fd.append('discount',         JSON.stringify({ percentage: data.discountPercentage || 0 }));
     if (location) fd.append('location', JSON.stringify(location));
     for (const img of images) fd.append('images', img);
     for (const vid of videos) fd.append('video', vid);
     mutation.mutate(fd);
-  };
+  });
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={onSubmit} className="space-y-4" noValidate>
       <div className="flex items-center justify-between">
         <div className="text-base font-semibold text-ink">Yeni məhsul əlavə et</div>
         {onCancel ? (
@@ -1128,31 +1188,44 @@ function AddProductForm({ categories, sellerRegion, onSuccess, onCancel }) {
       )}
 
       <Card title="1. Əsas məlumatlar">
-        <FormField label="Məhsul adı" required>
-          <input className="input-shell w-full" placeholder="Məhsul adını daxil edin" value={form.name} onChange={e => sf('name', e.target.value)} required />
+        <FormField label="Məhsul adı" required error={fe.name}>
+          <input
+            className={`input-shell w-full ${fe.name ? 'input-error' : ''}`}
+            placeholder="Məhsul adını daxil edin"
+            {...register('name')}
+          />
         </FormField>
-        <FormField label="Təsvir" required>
-          <textarea className="input-shell w-full min-h-[80px] resize-y" placeholder="Məhsul haqqında məlumat..." value={form.description} onChange={e => sf('description', e.target.value)} required />
+        <FormField label="Təsvir" required error={fe.description}>
+          <textarea
+            className={`input-shell w-full min-h-[80px] resize-y ${fe.description ? 'input-error' : ''}`}
+            placeholder="Məhsul haqqında məlumat..."
+            {...register('description')}
+          />
         </FormField>
       </Card>
 
       <Card title="2. Qiymət və satış">
         <div className="grid grid-cols-2 gap-4">
-          <FormField label="Qiymət (AZN)" required>
-            <input type="number" min="0" step="0.01" className="input-shell w-full" placeholder="0.00" value={form.price} onChange={e => sf('price', e.target.value)} required />
+          <FormField label="Qiymət (AZN)" required error={fe.price}>
+            <input
+              type="number" min="0" step="0.01"
+              className={`input-shell w-full ${fe.price ? 'input-error' : ''}`}
+              placeholder="0.00"
+              {...register('price', { valueAsNumber: true })}
+            />
           </FormField>
-          <FormField label="Ölçü vahidi" required>
-            <select className="input-shell w-full" value={form.unit} onChange={e => sf('unit', e.target.value)}>
+          <FormField label="Ölçü vahidi" required error={fe.unit}>
+            <select className="input-shell w-full" {...register('unit')}>
               {Object.entries(UNIT_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </select>
           </FormField>
         </div>
-        <FormField label="Satış tipi" required>
+        <FormField label="Satış tipi" required error={fe.saleType}>
           <div className="grid grid-cols-3 gap-2">
             {[{ value: 'retail', label: 'Pərakəndə' }, { value: 'wholesale', label: 'Topdan' }, { value: 'both', label: 'Hər ikisi' }].map(({ value, label }) => (
-              <button key={value} type="button" onClick={() => sf('saleType', value)}
+              <button key={value} type="button" onClick={() => setValue('saleType', value, { shouldValidate: true })}
                 className={`rounded-xl border py-2.5 text-xs font-medium transition ${
-                  form.saleType === value ? 'border-forest bg-forest/10 text-forest' : 'border-slate-200 text-slate-600 hover:border-forest/40'
+                  saleType === value ? 'border-forest bg-forest/10 text-forest' : 'border-slate-200 text-slate-600 hover:border-forest/40'
                 }`}
               >
                 {label}
@@ -1160,25 +1233,55 @@ function AddProductForm({ categories, sellerRegion, onSuccess, onCancel }) {
             ))}
           </div>
         </FormField>
-        <FormField label="Endirim faizi (%)">
-          <input type="number" min="0" max="100" className="input-shell w-full" placeholder="0" value={form.discountPercentage} onChange={e => sf('discountPercentage', e.target.value)} />
+        <FormField label="Endirim faizi (%)" error={fe.discountPercentage}>
+          <input
+            type="number" min="0" max="100"
+            className="input-shell w-full"
+            placeholder="0"
+            {...register('discountPercentage', { valueAsNumber: true })}
+          />
         </FormField>
       </Card>
 
       <Card title="3. Stok və minimum sifariş">
         <div className="grid grid-cols-2 gap-4">
-          <FormField label="Stok miqdarı" required>
-            <input type="number" min="0" className="input-shell w-full" placeholder="10" value={form.stockQuantity} onChange={e => sf('stockQuantity', e.target.value)} required />
+          <FormField label="Stok miqdarı" required error={fe.stockQuantity}>
+            <Controller
+              name="stockQuantity"
+              control={control}
+              render={({ field }) => (
+                <QuantityInput
+                  value={field.value}
+                  min={0}
+                  max={9999999}
+                  onChange={field.onChange}
+                />
+              )}
+            />
           </FormField>
-          <FormField label="Minimum sifariş" required>
-            <input type="number" min="1" className="input-shell w-full" placeholder="1" value={form.minOrderQuantity} onChange={e => sf('minOrderQuantity', e.target.value)} required />
+          <FormField label="Minimum sifariş" required error={fe.minOrderQuantity}>
+            <Controller
+              name="minOrderQuantity"
+              control={control}
+              render={({ field }) => (
+                <QuantityInput
+                  value={field.value}
+                  min={0.001}
+                  max={9999999}
+                  onChange={field.onChange}
+                />
+              )}
+            />
           </FormField>
         </div>
       </Card>
 
       <Card title="4. Kateqoriya və taglər">
-        <FormField label="Kateqoriya" required>
-          <select className="input-shell w-full" value={form.category} onChange={e => sf('category', e.target.value)} required>
+        <FormField label="Kateqoriya" required error={fe.category}>
+          <select
+            className={`input-shell w-full ${fe.category ? 'input-error' : ''}`}
+            {...register('category')}
+          >
             <option value="">Kateqoriya seçin</option>
             {categories.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
           </select>
@@ -1565,7 +1668,10 @@ function ProfileSection({ user, stats, meData, regions }) {
               </FormField>
             </div>
             <FormField label="Telefon">
-              <input className="input-shell w-full" value={personal.phone} onChange={e => sp('phone', e.target.value)} />
+              <PhoneInput
+                value={personal.phone}
+                onChange={normalized => sp('phone', normalized)}
+              />
             </FormField>
             <FormField label="Region">
               <select className="input-shell w-full" value={personal.region} onChange={e => sp('region', e.target.value)}>

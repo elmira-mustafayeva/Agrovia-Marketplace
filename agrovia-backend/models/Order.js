@@ -93,7 +93,12 @@ const orderSchema = new mongoose.Schema(
         ref: "Region"
       },
       city: { type: String, trim: true },
-      street: { type: String, trim: true },
+      street: {
+        type: String,
+        trim: true,
+        minlength: [3, 'Ünvan ən az 3 simvol olmalıdır'],
+        maxlength: [200, 'Ünvan 200 simvoldan çox ola bilməz']
+      },
 
       coordinates: {
         lat: Number,
