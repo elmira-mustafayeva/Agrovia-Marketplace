@@ -173,9 +173,7 @@ export default function ProductPage() {
       ) : null}
       <section className="section-shell py-10">
       <SectionTitle
-        eyebrow="Məhsul detalı"
         title={product.name}
-        description="Bu səhifə `GET /api/products/:id` və `GET /api/reviews/product/:productId` nəticələrinə əsaslanır."
       />
 
       <div className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr]">
@@ -239,11 +237,6 @@ export default function ProductPage() {
               <div className="text-xs text-slate-500">Satıcı</div>
               <div className="mt-1 text-lg font-semibold text-ink">{product.seller?.sellerInfo?.businessName || product.seller?.firstName}</div>
             </div>
-          </div>
-
-          <div className="rounded-3xl bg-slate-950 p-5 text-white">
-            <div className="flex items-center gap-2 text-sm font-semibold"><Truck className="h-4 w-4 text-sun" />Çatdırılma və rating</div>
-            <p className="mt-2 text-sm leading-6 text-white/70">Sifariş verdikdən sonra rəy bölməsi aktivləşir. Aşağıda product review-lar da backend-dən gəlir.</p>
           </div>
         </div>
       </div>

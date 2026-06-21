@@ -280,9 +280,6 @@ export default function CartPage() {
 
       <section className="section-shell py-10">
         <SectionTitle
-          eyebrow="Səbət"
-          title="Səbətə əlavə olunmuş məhsullar"
-          description="Bu səhifə protected API-yə qoşulur və cart state-ni yeniləyir."
           action={!pendingPayment ? (
             <button type="button" className="btn-secondary" onClick={() => clearMutation.mutate()}>Səbəti boşalt</button>
           ) : null}
@@ -297,7 +294,6 @@ export default function CartPage() {
               <div>
                 <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Ödəniş məbləği</div>
                 <div className="mt-1 text-3xl font-semibold text-forest">{formatPrice(pendingPayment.amount)}</div>
-                <div className="mt-1 text-sm text-slate-500">Kart məlumatlarınızı daxil edin</div>
               </div>
               {checkoutError ? (
                 <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{checkoutError}</div>
@@ -476,7 +472,7 @@ export default function CartPage() {
                   </FormField>
 
                   <button type="submit" className="btn-primary w-full" disabled={isSubmitting}>
-                    {isSubmitting ? 'Göndərilir...' : 'Ödənişə keç'}
+                    {isSubmitting ? 'Ödənişə keçilir...' : 'Sifariş ver'}
                   </button>
                   <button type="button" className="btn-secondary w-full" onClick={() => setCheckoutOpen(false)} disabled={isSubmitting}>
                     Ləğv et

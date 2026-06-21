@@ -261,7 +261,7 @@ function StatsRow({ stats }) {
     { icon: Wallet,        iconCls: 'bg-forest/10 text-forest',        label: 'Ödəniləcək',          value: formatPrice(stats.payable ?? 0) },
   ];
   return (
-    <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+    <div className="grid grid-cols-2 gap-4 xl:grid-cols-5">
       {cards.map(({ icon: Icon, iconCls, label, value }) => (
         <div key={label} className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
           <div className={`inline-flex items-center justify-center rounded-xl p-2.5 ${iconCls}`}>
@@ -289,7 +289,7 @@ function Sidebar({ section, onSection }) {
           <Sprout className="h-5 w-5" />
         </div>
         <div>
-          <div className="text-sm font-bold text-ink">agrovia</div>
+          <div className="text-sm font-bold text-ink">Agrovia</div>
           <div className="text-[10px] text-slate-400">Satıcı Paneli</div>
         </div>
       </div>
@@ -319,13 +319,6 @@ function Sidebar({ section, onSection }) {
         >
           <MessageCircle className="h-4 w-4 shrink-0" />Mesajlar
         </button>
-        <button
-          type="button"
-          onClick={() => openChat({ type: 'support' })}
-          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-ink"
-        >
-          <LifeBuoy className="h-4 w-4 shrink-0" />Dəstək
-        </button>
 
         <div className="my-2 h-px bg-slate-100" />
 
@@ -354,7 +347,7 @@ function Sidebar({ section, onSection }) {
               <div className="text-[10px] text-slate-400">Köməyə ehtiyacınız var?</div>
             </div>
           </div>
-          <button type="button" onClick={() => navigate('/')} className="mt-2 text-xs font-medium text-forest hover:underline">
+          <button type="button" onClick={() => openChat({ type: 'support' })} className="mt-2 text-xs font-medium text-forest hover:underline">
             Bizimlə əlaqə
           </button>
         </div>
@@ -1286,7 +1279,7 @@ function AddProductForm({ categories, sellerRegion, onSuccess, onCancel }) {
             {categories.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
           </select>
         </FormField>
-        <FormField label="Taglər" helper="Axtarış və filtrləmə üçün açar sözlər: məsələn alma, təzə, üzvi">
+        <FormField label="Tag" helper="Axtarış və filtrləmə üçün açar sözlər: məsələn alma, təzə, üzvi">
           <TagInput tags={tags} setTags={setTags} />
         </FormField>
       </Card>
@@ -1858,7 +1851,7 @@ function SettingsSection() {
       <div className="grid gap-4 sm:grid-cols-2">
         {[
           { title: 'Bildiriş parametrləri', desc: 'Email və tətbiq bildirişlərini idarə edin' },
-          { title: 'Məxfilik parametrləri', desc: 'Profil görünürlüğünü tənzimləyin' },
+          { title: 'Məxfilik parametrləri', desc: 'Profil görünüşünü tənzimləyin' },
           { title: 'Dil və görünüş',        desc: 'İnterfeys dilini seçin' },
           { title: 'API inteqrasiyası',     desc: 'Xarici sistemlərlə əlaqə' },
         ].map(item => (
@@ -1944,7 +1937,7 @@ export default function SellerDashboard() {
   const liveUser = meQuery.data?.user ?? user;
 
   return (
-    <div className="fixed inset-0 z-50 flex overflow-hidden bg-slate-50">
+    <div className="fixed inset-0 z-50 flex  bg-slate-50">
       <Sidebar section={section} onSection={setSection} />
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">

@@ -103,7 +103,7 @@ export default function OrdersPage() {
         </div>
       ) : null}
 
-      <SectionTitle eyebrow="Sifarişlər" title="Mənim sifarişlərim" />
+      <SectionTitle title="Mənim sifarişlərim" />
 
       {ordersQuery.isLoading ? (
         <LoadingGrid rows={2} />
@@ -151,19 +151,7 @@ export default function OrdersPage() {
                   </div>
                 ) : null}
 
-                {/* Chat actions */}
-                <div className="flex flex-wrap gap-2">
-                  {order.items?.[0]?.product?._id ? (
-                    <button type="button" className="btn-secondary text-xs" onClick={() => openChat({ type: 'buyer_seller', productId: order.items[0].product._id })}>
-                      <MessageCircle className="h-3.5 w-3.5" />Satıcıya yaz
-                    </button>
-                  ) : null}
-                  {order.courier ? (
-                    <button type="button" className="btn-secondary text-xs" onClick={() => openChat({ type: 'buyer_courier', orderId: order._id })}>
-                      <MessageCircle className="h-3.5 w-3.5" />Kuryerə yaz
-                    </button>
-                  ) : null}
-                </div>
+               
 
                 {/* Items */}
                 <div className="space-y-3">
@@ -179,7 +167,7 @@ export default function OrdersPage() {
                           <img
                             src={getProductImage(item.product)}
                             alt={item.name}
-                            className="h-20 w-20 shrink-0 rounded-xl border border-slate-100 object-cover"
+                            className="h-80 w-80 shrink-0 rounded-xl border border-slate-100 object-cover"
                           />
                           <div className="min-w-0 flex-1">
                             <div className="font-semibold text-ink">{item.name}</div>
@@ -193,16 +181,23 @@ export default function OrdersPage() {
                           </div>
                         </div>
 
+
+
                         {/* Item actions */}
                         <div className="mt-3 flex flex-wrap items-center gap-2">
-                          {productId ? (
-                            <Link to={`/products/${productId}`} className="btn-secondary text-xs">
-                              Məhsula bax
-                            </Link>
-                          ) : (
-                            <span className="text-xs text-slate-400">Məhsul mövcud deyil</span>
-                          )}
-                          {productId ? (
+                         
+                           {order.items?.[0]?.product?._id ? (
+                    <button type="button" className="btn-secondary text-xs" onClick={() => openChat({ type: 'buyer_seller', productId: order.items[0].product._id })}>
+                      <MessageCircle className="h-3.5 w-3.5" />Satıcıya yaz
+                    </button>
+                  ) : null}
+                  {order.courier ? (
+                    <button type="button" className="btn-secondary text-xs" onClick={() => openChat({ type: 'buyer_courier', orderId: order._id })}>
+                      <MessageCircle className="h-3.5 w-3.5" />Kuryerə yaz
+                    </button>
+                  ) : null}
+
+                   {productId ? (
                             <button
                               type="button"
                               className="btn-secondary text-xs"
@@ -212,7 +207,9 @@ export default function OrdersPage() {
                               Yenidən sifariş ver
                             </button>
                           ) : null}
-                          {deliveredPaid && productId ? (
+                        </div>
+                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                         {deliveredPaid && productId ? (
                             reviewed ? (
                               <span className="inline-flex items-center rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-700">
                                 Rəy yazılıb
@@ -226,15 +223,19 @@ export default function OrdersPage() {
                               </Link>
                             )
                           ) : null}
-                        </div>
+                          </div>
+                        
                       </div>
+                      
                     );
                   })}
                 </div>
-
+          
+              
                 {/* Courier (delivery) rating — order-level */}
                 {order.status === 'delivered' && order.payment?.status === 'paid' && order.courier ? (
                   <div className="rounded-2xl border border-slate-100 p-4">
+            
                     {order.deliveryReview?.rating ? (
                       <div className="flex items-center gap-2 text-sm text-slate-600">
                         <span>Kuryer qiymətləndirildi:</span>
@@ -275,6 +276,7 @@ export default function OrdersPage() {
                         </div>
                       </div>
                     ) : (
+                      
                       <button
                         type="button"
                         className="btn-secondary text-xs"
