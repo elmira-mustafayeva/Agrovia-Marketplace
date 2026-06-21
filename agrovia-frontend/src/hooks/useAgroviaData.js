@@ -13,11 +13,26 @@ export const useRegions = () => useQuery({
   select: (data) => data.regions || []
 });
 
-export const useProducts = (filters) => useQuery({
-  queryKey: ['products', filters],
-  queryFn: () => api.getProducts(filters),
-  select: (data) => data.products || []
-});
+// Strip empty/null/whitespace/Hamısı values so axios never sends category=&region=&search=
+function cleanProductParams(raw = {}) {
+  const params = {};
+  for (const [k, v] of Object.entries(raw)) {
+    if (v === null || v === undefined) continue;
+    const s = typeof v === 'string' ? v.trim() : String(v);
+    if (s === '' || s === 'Hamısı') continue;
+    params[k] = s;
+  }
+  return params;
+}
+
+export const useProducts = (filters) => {
+  const clean = cleanProductParams(filters);
+  return useQuery({
+    queryKey: ['products', clean],
+    queryFn: () => api.getProducts(clean),
+    select: (data) => data.products || [],
+  });
+};
 
 export const useProduct = (id) => useQuery({
   queryKey: ['product', id],

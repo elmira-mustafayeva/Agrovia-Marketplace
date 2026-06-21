@@ -18,12 +18,18 @@ import ResetPasswordPage from './pages/ResetPasswordPage';
 import VerifyEmailPage from './pages/VerifyEmailPage';
 import DashboardPage from './pages/DashboardPage';
 import SellerDashboard from './pages/SellerDashboard';
+import CourierDashboard from './pages/CourierDashboard';
+import AdminDashboard from './pages/AdminDashboard';
 import MessagesPage from './pages/MessagesPage';
+import BuyerProfilePage from './pages/BuyerProfilePage';
 import NotFoundPage from './pages/NotFoundPage';
 
 function DashboardRoute() {
   const { user } = useSelector((state) => state.auth);
   if (user?.role === 'seller') return <SellerDashboard />;
+  if (user?.role === 'buyer') return <BuyerProfilePage />;
+  if (user?.role === 'courier') return <CourierDashboard />;
+  if (user?.role === 'admin') return <AdminDashboard />;
   return (
     <DashboardLayout title="İdarəetmə paneli" subtitle="Roluna uyğun dinamik məlumatlara bax.">
       <DashboardPage />
@@ -89,6 +95,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <MessagesPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <BuyerProfilePage />
             </ProtectedRoute>
           }
         />

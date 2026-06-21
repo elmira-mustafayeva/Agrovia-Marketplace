@@ -1,43 +1,73 @@
 import { useState } from 'react';
-import { motion } from 'framer-motion';
-import { NavLink } from 'react-router-dom';
-import { ChevronRight, Mail, MapPinned, PhoneCall, ShieldCheck, Sparkles } from 'lucide-react';
+import { NavLink, useNavigate } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
+import { Mail, MapPinned, Moon, PhoneCall, Sparkles, Sun } from 'lucide-react';
 import Navigation from '../components/Navigation';
+import { useTheme } from '../components/ThemeProvider';
+import { getMobileLinks } from '../config/navConfig';
+import { clearCredentials } from '../features/auth/authSlice';
 
 export default function MainLayout({ children }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const { user, token } = useSelector((state) => state.auth);
+  const { theme, toggleTheme } = useTheme();
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+
+  const isBuyer = user?.role === 'buyer';
+  const mobileLinks = getMobileLinks(user?.role, { isBuyer, signedIn: !!token });
+
+  const close = () => setMenuOpen(false);
+  const handleLogout = () => { dispatch(clearCredentials()); close(); navigate('/'); };
 
   return (
-    <div className="min-h-screen text-slate-900">
+    <div className="min-h-screen text-slate-900 dark:text-slate-100">
       <Navigation onMenuToggle={() => setMenuOpen((value) => !value)} />
+
       {menuOpen ? (
-        <div className="border-b border-slate-200 bg-white px-4 py-3 text-sm lg:hidden">
-          <div className="section-shell flex flex-wrap gap-2">
-            {[
-              { to: '/', label: 'Ana səhifə' },
-              { to: '/shop', label: 'Mağaza' },
-              { to: '/delivery', label: 'Çatdırılma' },
-              { to: '/orders', label: 'Sifarişlər' },
-              { to: '/dashboard', label: 'Panel' },
-              { to: '/cart', label: 'Səbət' },
-              { to: '/wishlist', label: 'Wishlist' }
-            ].map(({ to, label }) => (
-              <NavLink
-                key={to}
-                to={to}
-                onClick={() => setMenuOpen(false)}
-                className={({ isActive }) =>
-                  `rounded-full px-4 py-2 ${isActive ? 'bg-forest text-white' : 'bg-slate-100 text-slate-700'}`
-                }
+        <div className="border-b border-slate-200 bg-white px-4 py-3 text-sm lg:hidden dark:border-slate-800 dark:bg-slate-950">
+          <div className="section-shell flex flex-col gap-3">
+            <div className="flex flex-wrap gap-2">
+              {mobileLinks.map(({ to, label }) => (
+                <NavLink
+                  key={label}
+                  to={to}
+                  end={to === '/'}
+                  onClick={close}
+                  className={({ isActive }) =>
+                    `rounded-full px-4 py-2 ${
+                      isActive
+                        ? 'bg-forest text-white'
+                        : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200'
+                    }`
+                  }
+                >
+                  {label}
+                </NavLink>
+              ))}
+            </div>
+            <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={toggleTheme}
+                className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-slate-700 dark:border-slate-700 dark:text-slate-200"
               >
-                {label}
-              </NavLink>
-            ))}
+                {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                {theme === 'dark' ? 'İşıqlı rejim' : 'Qaranlıq rejim'}
+              </button>
+              {user ? (
+                <button type="button" onClick={handleLogout} className="rounded-full bg-ink px-4 py-2 font-semibold text-white dark:bg-slate-800">Çıxış</button>
+              ) : (
+                <NavLink to="/auth" onClick={close} className="btn-primary py-2">Daxil ol</NavLink>
+              )}
+            </div>
           </div>
         </div>
       ) : null}
+
       <main>{children}</main>
-      <footer className="mt-16 border-t border-white/70 bg-ink text-white">
+
+      <footer className="mt-16 border-t border-white/70 bg-ink text-white dark:border-slate-800">
         <div className="section-shell grid gap-10 py-14 lg:grid-cols-[1.6fr_1fr_1fr]">
           <div>
             <div className="flex items-center gap-3">
@@ -46,11 +76,11 @@ export default function MainLayout({ children }) {
               </span>
               <div>
                 <div className="text-lg font-semibold">Agrovia</div>
-                <div className="text-sm text-white/60">Aqrar marketplace təcrübəsi</div>
+                <div className="text-sm text-white/60">Yerli məhsul marketplace təcrübəsi</div>
               </div>
             </div>
             <p className="mt-5 max-w-xl text-sm leading-7 text-white/70">
-              Fermer, satıcı, alıcı və kuryer üçün eyni platformada dinamik məhsul axını, sifariş idarəsi və çatdırılma hesablama axını.
+              Satıcı, alıcı və kuryer üçün eyni platformada dinamik məhsul axını, sifariş idarəsi və çatdırılma hesablama axını.
             </p>
             <div className="mt-6 flex flex-wrap gap-3 text-sm text-white/75">
              </div>

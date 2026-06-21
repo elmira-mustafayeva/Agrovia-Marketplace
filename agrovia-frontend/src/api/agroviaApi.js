@@ -60,6 +60,18 @@ export const api = {
   adminPendingProducts: () => http.get('/admin/products/pending').then(unwrap),
   approveProduct: (id, payload) => http.put(`/admin/products/${id}/approve`, payload).then(unwrap),
   markPayout: (id, target) => http.put(`/admin/orders/${id}/payout`, { target }).then(unwrap),
+  // Admin category CRUD (full CRUD exists at /admin/categories)
+  adminGetCategories: () => http.get('/admin/categories').then(unwrap),
+  adminCreateCategory: (payload) => http.post('/admin/categories', payload).then(unwrap),
+  adminUpdateCategory: (id, payload) => http.put(`/admin/categories/${id}`, payload).then(unwrap),
+  adminDeleteCategory: (id) => http.delete(`/admin/categories/${id}`).then(unwrap),
+  // Admin region CRUD (full CRUD exists at /admin/regions)
+  adminGetRegions: () => http.get('/admin/regions').then(unwrap),
+  adminCreateRegion: (payload) => http.post('/admin/regions', payload).then(unwrap),
+  adminUpdateRegion: (id, payload) => http.put(`/admin/regions/${id}`, payload).then(unwrap),
+  adminDeleteRegion: (id) => http.delete(`/admin/regions/${id}`).then(unwrap),
+  // Admin user status toggle
+  adminToggleUserStatus: (id) => http.put(`/admin/users/${id}/status`, {}).then(unwrap),
   getConversations: (params = {}) => http.get('/conversations', { params }).then(unwrap),
   createConversation: (payload) => http.post('/conversations', payload).then(unwrap),
   getMessages: (id) => http.get(`/conversations/${id}/messages`).then(unwrap),

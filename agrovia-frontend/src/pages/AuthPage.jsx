@@ -102,8 +102,8 @@ export default function AuthPage() {
 
   return (
     <section className="section-shell py-10">
-      <SectionTitle eyebrow="Autentication" title="Daxil ol və ya qeydiyyatdan keç" description="Login və register backend auth endpoint-lərinə bağlıdır." />
-      <div className="grid gap-6 lg:grid-cols-[1fr_420px]">
+      <SectionTitle title="Daxil ol və ya qeydiyyatdan keç" />
+      <div className="grid gap-6 lg:grid-cols-[1fr_680px]">
         <div className="panel">
           <div className="flex flex-wrap gap-3">
             <button type="button" className={mode === 'login' ? 'btn-primary' : 'btn-secondary'} onClick={() => switchMode('login')}>
@@ -267,20 +267,6 @@ export default function AuthPage() {
               </button>
             </form>
           )}
-        </div>
-
-        <div className="panel space-y-4">
-          <div className="rounded-3xl bg-ink p-5 text-white">
-            <div className="text-sm font-semibold uppercase tracking-[0.18em] text-white/50">Daxil ol sonra</div>
-            <ul className="mt-4 space-y-2 text-sm leading-6 text-white/75">
-              <li>• Dinamik cart və wishlist açılır</li>
-              <li>• Role-based dashboard görünür</li>
-              <li>• Token localStorage-da saxlanır</li>
-            </ul>
-          </div>
-          <div className="rounded-3xl bg-slate-50 p-5 text-sm leading-6 text-slate-600">
-            Seller, courier və admin panelləri backend roluna görə açılır. Buyers üçün səbət, sifariş və wishlist axını aktivdir.
-          </div>
         </div>
       </div>
     </section>
