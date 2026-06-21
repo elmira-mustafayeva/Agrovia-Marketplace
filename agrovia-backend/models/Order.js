@@ -76,9 +76,13 @@ const orderSchema = new mongoose.Schema(
     // Distance-based delivery snapshot (computed at order creation, never recalculated).
     // deliveryFee above mirrors delivery.price for backward compatibility.
     delivery: {
-      distanceKm: { type: Number, default: 0 },
+      distanceKm:     { type: Number,  default: 0 },
       durationMinutes: { type: Number, default: 0 },
-      price: { type: Number, default: 0 }
+      price:          { type: Number,  default: 0 },
+      sameRegion:     { type: Boolean, default: false },
+      pricingTier:    { type: String,  default: '' },
+      originCount:    { type: Number,  default: 1 },
+      note:           { type: String,  default: '' },
     },
     totalAmount: {
       type: Number,

@@ -20,12 +20,12 @@ const fallbackGetDistance = (origin, destination) => {
   return { distanceKm, durationMinutes: Math.floor(distanceKm * 1.5) };
 };
 
-// @desc    Calculate delivery price
+// @desc    Calculate delivery price (test / DeliveryPage tool)
 // @route   POST /api/delivery/calculate
 // @access  Public
 exports.calculateDelivery = async (req, res) => {
   try {
-    const { origin, destination, weather = 'normal', isPeak = false, demand = 'normal' } = req.body;
+    const { origin, destination, sameRegion = false } = req.body;
 
     if (!origin || !destination) {
       return res.status(400).json({
@@ -34,9 +34,8 @@ exports.calculateDelivery = async (req, res) => {
       });
     }
 
-    // Try Google Maps first, fallback to mock
     let distanceKm, durationMinutes;
-    
+
     try {
       const { getDistanceAndDuration } = require('../utils/maps');
       const result = await getDistanceAndDuration(origin, destination);
@@ -48,19 +47,22 @@ exports.calculateDelivery = async (req, res) => {
       durationMinutes = fallback.durationMinutes;
     }
 
-    const price = calculateDeliveryPrice({
-      distanceKm,
-      durationMinutes,
-      weather,
-      isPeak,
-      demand
-    });
+    const isSameRegion = Boolean(sameRegion);
+    const price = calculateDeliveryPrice({ distanceKm, sameRegion: isSameRegion });
+
+    const pricingTier = isSameRegion
+      ? 'same_region'
+      : distanceKm <= 100
+        ? 'cross_region'
+        : 'long_distance';
 
     res.status(200).json({
       success: true,
       distanceKm,
       durationMinutes,
       price,
+      pricingTier,
+      sameRegion: isSameRegion,
       currency: 'AZN'
     });
   } catch (error) {
