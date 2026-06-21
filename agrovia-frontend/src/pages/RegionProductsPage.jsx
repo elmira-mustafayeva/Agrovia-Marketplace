@@ -56,7 +56,6 @@ export default function RegionProductsPage() {
       </div>
 
       <SectionTitle
-        eyebrow="Region"
         title={region?.name || 'Məhsullar'}
         action={
           !productsQuery.isLoading ? (
@@ -72,8 +71,7 @@ export default function RegionProductsPage() {
       ) : products.length === 0 ? (
         <EmptyState
           icon={ShoppingBag}
-          title="Bu regionda məhsul tapılmadı"
-          description="Hazırda bu regionda aktiv məhsul yoxdur."
+          title="Hazırda bu regionda aktiv məhsul yoxdur."
           action={
             <Link to="/regions" className="btn-secondary">
               Regionlara qayıt

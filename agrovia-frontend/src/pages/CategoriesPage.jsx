@@ -9,8 +9,6 @@ export default function CategoriesPage() {
   return (
     <div className="section-shell py-10">
       <SectionTitle
-        eyebrow="Kataloq"
-        title="Kateqoriyalar"
         description="Axtardığınız məhsul növünü seçin."
         action={
           !isLoading ? (

@@ -9,9 +9,7 @@ export default function RegionsPage() {
   return (
     <div className="section-shell py-10">
       <SectionTitle
-        eyebrow="Coğrafiya"
-        title="Regionlar"
-        description="Yerli istehsalçıları regionlara görə kəşf edin."
+        description="Yerli mehsulları regionlara görə kəşf edin."
         action={
           !isLoading ? (
             <div className="chip dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">
@@ -40,8 +38,6 @@ export default function RegionsPage() {
                 <div className="truncate font-semibold text-ink dark:text-white">{region.name}</div>
                 {region.nameEn ? (
                   <div className="truncate text-xs text-slate-400 dark:text-slate-500">{region.nameEn}</div>
-                ) : region.type ? (
-                  <div className="truncate text-xs capitalize text-slate-400 dark:text-slate-500">{region.type}</div>
                 ) : null}
               </div>
               <ArrowRight className="h-4 w-4 shrink-0 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-forest dark:text-slate-600 dark:group-hover:text-emerald-400" />

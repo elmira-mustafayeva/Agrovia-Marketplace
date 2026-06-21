@@ -38,7 +38,6 @@ export default function StoresPage() {
   return (
     <div className="section-shell py-10">
       <SectionTitle
-        eyebrow="Satıcılar"
         title="Mağazalar"
         description="Platforma üzərindəki yerli məhsul satıcılarını kəşf edin."
         action={
