@@ -14,7 +14,6 @@ import {
   Moon,
   Search,
   ShoppingBag,
-  Sprout,
   Sun,
   UserCircle2,
 } from 'lucide-react';
@@ -92,14 +91,18 @@ export default function Navigation({ onMenuToggle }) {
     <header className="sticky top-0 z-50 border-b border-white/60 bg-white/80 backdrop-blur-xl dark:border-slate-800 dark:bg-slate-950/80">
       <div className="section-shell flex items-center justify-between gap-4 py-4">
         {/* Brand */}
-        <Link to="/" className="flex items-center gap-3 font-semibold text-ink dark:text-white">
-          <span className="grid h-11 w-11 place-items-center rounded-2xl bg-forest text-white shadow-lift">
-            <Sprout className="h-5 w-5" />
-          </span>
-          <span>
-            <span className="block text-base tracking-wide">Agrovia</span>
-            <span className="block text-xs font-normal text-slate-500 dark:text-slate-400">Marketplace</span>
-          </span>
+        <Link to="/" className="flex items-center gap-3">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-[#064e3b] bg-white shadow-sm">
+            <img
+              src="/agrovia-logo.svg?v=2"
+              alt="Agrovia Marketplace"
+              className="h-12 w-12 object-contain"
+            />
+          </div>
+          <div className="leading-tight">
+            <p className="text-lg font-bold text-slate-900 dark:text-white">Agrovia</p>
+            <p className="text-sm text-slate-500 dark:text-slate-400">Marketplace</p>
+          </div>
         </Link>
 
         {/* Mobile toggle */}

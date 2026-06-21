@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 
 // Drop MP4 files into /public/hero/1.mp4 … /public/hero/4.mp4.
 // The component silently falls back to the CSS gradient if any video fails to load.
-const VIDEO_SRCS = ['/hero/1.mp4', '/hero/2.mp4', '/hero/3.mp4', '/hero/4.mp4'];
+const VIDEO_SRCS = ['', '/hero/2.mp4', '/hero/3.mp4', '/hero/4.mp4'];
 const ADVANCE_MS = 3500;
 
 export default function VideoHero({ children }) {

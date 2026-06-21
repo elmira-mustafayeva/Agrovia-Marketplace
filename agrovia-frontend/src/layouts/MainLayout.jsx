@@ -3,6 +3,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { Mail, MapPinned, Moon, PhoneCall, Sparkles, Sun } from 'lucide-react';
 import Navigation from '../components/Navigation';
+import FloatingSupportButton from '../components/FloatingSupportButton';
 import { useTheme } from '../components/ThemeProvider';
 import { getMobileLinks } from '../config/navConfig';
 import { clearCredentials } from '../features/auth/authSlice';
@@ -66,6 +67,7 @@ export default function MainLayout({ children }) {
       ) : null}
 
       <main>{children}</main>
+      <FloatingSupportButton />
 
       <footer className="mt-16 border-t border-white/70 bg-ink text-white dark:border-slate-800">
         <div className="section-shell grid gap-10 py-14 lg:grid-cols-[1.6fr_1fr_1fr]">

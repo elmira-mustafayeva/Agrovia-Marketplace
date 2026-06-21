@@ -16,6 +16,12 @@ import AuthPage from './pages/AuthPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import VerifyEmailPage from './pages/VerifyEmailPage';
+import CategoriesPage from './pages/CategoriesPage';
+import CategoryProductsPage from './pages/CategoryProductsPage';
+import RegionsPage from './pages/RegionsPage';
+import RegionProductsPage from './pages/RegionProductsPage';
+import StoresPage from './pages/StoresPage';
+import StoreProductsPage from './pages/StoreProductsPage';
 import DashboardPage from './pages/DashboardPage';
 import SellerDashboard from './pages/SellerDashboard';
 import CourierDashboard from './pages/CourierDashboard';
@@ -52,6 +58,12 @@ export default function App() {
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/shop" element={<ShopPage />} />
+        <Route path="/categories" element={<CategoriesPage />} />
+        <Route path="/categories/:categoryId" element={<CategoryProductsPage />} />
+        <Route path="/regions" element={<RegionsPage />} />
+        <Route path="/regions/:regionId" element={<RegionProductsPage />} />
+        <Route path="/stores" element={<StoresPage />} />
+        <Route path="/stores/:sellerId" element={<StoreProductsPage />} />
         <Route path="/products/:id" element={<ProductPage />} />
         <Route path="/delivery" element={<DeliveryPage />} />
         <Route path="/auth" element={<AuthPage />} />

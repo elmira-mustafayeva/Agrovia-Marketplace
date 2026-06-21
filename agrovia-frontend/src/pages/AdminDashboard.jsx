@@ -9,7 +9,7 @@ import {
 import {
   AlertTriangle, CheckCircle2, ChevronDown, ChevronUp, Globe,
   LayoutDashboard, MessageCircle, Package, PackageSearch, Pencil, Plus,
-  ShieldCheck, Tag, Trash2, Users, Wallet, X,
+  ShieldCheck, ShoppingBag, Tag, Trash2, Users, Wallet, X,
 } from 'lucide-react';
 import { api } from '../api/agroviaApi';
 import { useOpenConversation } from '../hooks/useOpenConversation';
@@ -26,6 +26,7 @@ const TABS = [
   { id: 'users',      label: 'İstifadəçilər',  icon: Users },
   { id: 'categories', label: 'Kateqoriyalar',  icon: Tag },
   { id: 'regions',    label: 'Regionlar',      icon: Globe },
+  { id: 'shops',      label: 'Mağazalar',      icon: ShoppingBag },
   { id: 'support',    label: 'Dəstək',         icon: MessageCircle },
 ];
 
@@ -520,7 +521,7 @@ export default function AdminDashboard() {
                 <Tooltip content={<ChartTooltip />} cursor={{ fill: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)' }} />
                 <Bar dataKey="value" radius={[6, 6, 0, 0]}>
                   {financeData.map((_, i) => (
-                    <Cell key={i} fill={['#6366F1', '#10B981', '#F59E0B', '#06B6D4'][i]} />
+                    <Cell key={i} fill={['#428297', '#48913a', '#F59E0B', '#06b6d4'][i]} />
                   ))}
                 </Bar>
               </BarChart>
@@ -876,7 +877,7 @@ export default function AdminDashboard() {
             const active = tab === id;
             return (
               <button key={id} type="button"
-                onClick={() => setTab(id)}
+                onClick={() => id === 'shops' ? navigate('/shop') : setTab(id)}
                 className={`inline-flex items-center gap-1.5 rounded-[12px] px-3 py-2 text-sm font-medium transition ${
                   active
                     ? 'bg-white text-indigo-700 shadow-sm dark:bg-slate-800 dark:text-indigo-300'

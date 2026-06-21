@@ -8,13 +8,13 @@ const DASHBOARD_ROLES = ['seller', 'courier', 'admin'];
 // seller/courier/admin keep the top bar minimal (their real nav lives in the dashboard sidebar).
 export function getPrimaryLinks(role) {
   if (DASHBOARD_ROLES.includes(role)) {
-    return [{ to: '/dashboard', label: 'İdarəetmə paneli' }];
+    return []; // Dashboard access lives in the user dropdown — no redundant top-bar link
   }
   return [
     { to: '/', label: 'Ana səhifə' },
-    { to: '/shop', label: 'Mağazalar' },
-    { to: '/shop', label: 'Kateqoriyalar' },
-    { to: '/shop', label: 'Regionlar' },
+    { to: '/categories', label: 'Kateqoriya' },
+    { to: '/regions', label: 'Region' },
+    { to: '/stores', label: 'Mağaza' },
   ];
 }
 
