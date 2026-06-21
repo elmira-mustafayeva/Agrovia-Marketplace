@@ -158,8 +158,7 @@ export default function HomePage() {
       {/* Categories */}
       <section className="section-shell py-14">
         <SectionTitle
-          eyebrow="Kateqoriyalar"
-          title="Kateqoriya üzrə alış-veriş"
+        
           action={<Link to="/shop" className="btn-secondary">Hamısına bax</Link>}
         />
         {categoriesQuery.isLoading ? (
@@ -192,7 +191,7 @@ export default function HomePage() {
       {/* Featured products */}
       <section className="section-shell py-14">
         <SectionTitle
-          eyebrow="Seçilmiş məhsullar"
+          
           title="Ən son məhsullar"
           action={
             <Link to="/shop" className="btn-primary">
@@ -231,7 +230,6 @@ export default function HomePage() {
       {discountedProducts.length > 0 ? (
         <section className="section-shell py-14">
           <SectionTitle
-            eyebrow="Endirimli məhsullar"
             title="Qiymət endirimlərini əldən vermə"
             action={
               <Link to="/shop" className="inline-flex items-center gap-2 rounded-full border border-amber-300 bg-amber-50 px-5 py-2.5 text-sm font-semibold text-amber-700 transition hover:bg-amber-100 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300 dark:hover:bg-amber-500/20">
@@ -257,7 +255,6 @@ export default function HomePage() {
       {/* Regions */}
       <section className="section-shell py-14">
         <SectionTitle
-          eyebrow="Regionlar"
           title="Region üzrə məhsul axını"
           description="Bakı, Gəncə, Lənkəran və digər regionlardan birbaşa satıcılar."
         />
