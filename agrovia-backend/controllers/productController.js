@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Product = require('../models/Product');
 const { deleteFromCloudinary } = require('../middleware/upload');
 const { isValidCoords } = require('../utils/computeOrderDelivery');
@@ -47,9 +48,16 @@ exports.getProducts = async (req, res) => {
       if (maxPrice) filter.price.$lte = Number(maxPrice);
     }
 
-    // Axtarış
-    if (search) {
-      filter.$text = { $search: search };
+    // Axtarış — case-insensitive substring on name + description.
+    // sanitizeFilter (config/database.js) neutralizes raw operators, so wrap in mongoose.trusted().
+    // Escape user input so metacharacters are treated literally (avoids invalid-regex / ReDoS).
+    const term = (search || req.query.q || '').trim();
+    if (term) {
+      const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      filter.$or = [
+        { name: mongoose.trusted({ $regex: escaped, $options: 'i' }) },
+        { description: mongoose.trusted({ $regex: escaped, $options: 'i' }) },
+      ];
     }
 
     // Sıralama

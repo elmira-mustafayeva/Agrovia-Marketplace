@@ -28,7 +28,7 @@ export default function ShopPage() {
   const { token, user } = useSelector((state) => state.auth);
 
   // Read initial values from URL search params (links from nav search, category cards, region cards)
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [filters, setFilters] = useState({
     search: searchParams.get('search') || '',
     category: searchParams.get('category') || '',
@@ -119,6 +119,18 @@ export default function ShopPage() {
     setVisibleLimit(12);
   };
 
+  // Search drives both the query (local state) and the URL, so it stays shareable and
+  // survives refresh. Empty value removes the param entirely.
+  const updateSearch = (value) => {
+    updateFilter('search', value);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (value.trim()) next.set('search', value);
+      else next.delete('search');
+      return next;
+    }, { replace: true });
+  };
+
   const toggleDiscount = () => {
     setOnlyDiscounted((prev) => !prev);
     setVisibleLimit(12);
@@ -130,8 +142,6 @@ export default function ShopPage() {
 
       <section className="section-shell py-10">
         <SectionTitle
-          eyebrow="Mağaza"
-          title="Məhsul bazarı"
           action={
             <div className="chip dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">
               {filteredProducts.length} məhsul tapıldı
@@ -151,7 +161,7 @@ export default function ShopPage() {
                   className="input-shell pl-10"
                   placeholder="Məsələn: alma, pomidor..."
                   value={filters.search}
-                  onChange={(e) => updateFilter('search', e.target.value)}
+                  onChange={(e) => updateSearch(e.target.value)}
                 />
               </div>
             </div>
@@ -178,7 +188,7 @@ export default function ShopPage() {
             <div>
               <label className="mb-2 block text-sm font-semibold text-ink dark:text-white">Sıralama</label>
               <select className="input-shell" value={filters.sort} onChange={(e) => updateFilter('sort', e.target.value)}>
-                <option value="newest">Ən yeni</option>
+                <option value="newest">Yeni</option>
                 <option value="popular">Ən çox satılan</option>
                 <option value="price_asc">Ucuzdan bahaya</option>
                 <option value="price_desc">Bahadan ucuya</option>
@@ -219,20 +229,12 @@ export default function ShopPage() {
             ) : filteredProducts.length === 0 ? (
               <EmptyState
                 icon={ShoppingBag}
-                title={onlyDiscounted ? 'Endirimli məhsul tapılmadı' : 'Məhsul tapılmadı'}
-                description={
+                title={
                   onlyDiscounted
-                    ? 'Hazırda bu filterlərlə endirimli məhsul yoxdur.'
-                    : 'Filter kriteriyalarına uyğun aktiv məhsul yoxdur.'
-                }
-                action={
-                  onlyDiscounted ? (
-                    <button type="button" className="btn-secondary" onClick={toggleDiscount}>
-                      Bütün məhsullara bax
-                    </button>
-                  ) : (
-                    <Link className="btn-secondary" to="/delivery">Çatdırılma hesabla</Link>
-                  )
+                    ? 'Hazırda endirimli məhsul yoxdur.'
+                    : filters.search.trim()
+                      ? 'Axtarışa uyğun məhsul tapılmadı'
+                      : 'Hazırda aktiv məhsul yoxdur.'
                 }
               />
             ) : (
