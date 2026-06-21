@@ -128,7 +128,7 @@ export default function ChatPanel({ conversationId, myId }) {
   if (!conversationId) {
     return (
       <div className="panel flex h-full items-center justify-center">
-        <EmptyState title="Söhbət seçin" description="Soldan bir söhbət seçin və ya yeni söhbət başladın." />
+        
       </div>
     );
   }

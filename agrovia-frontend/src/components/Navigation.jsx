@@ -80,6 +80,7 @@ export default function Navigation({ onMenuToggle }) {
     e.preventDefault();
     const q = search.trim();
     navigate(q ? `/shop?search=${encodeURIComponent(q)}` : '/shop');
+    setSearch('');
   };
   const changeLang = (e) => {
     setLang(e.target.value);
@@ -208,7 +209,9 @@ export default function Navigation({ onMenuToggle }) {
                   </div>
                   <div className="py-1 text-sm">
                     {isBuyer ? <MenuItem to="/profile" icon={UserCircle2} label="Profilim" onClick={() => setUserMenuOpen(false)} /> : null}
-                    <MenuItem to="/dashboard" icon={LayoutDashboard} label="İdarəetmə paneli" onClick={() => setUserMenuOpen(false)} />
+                    {['seller', 'courier', 'admin'].includes(user?.role) ? (
+                      <MenuItem to="/dashboard" icon={LayoutDashboard} label="İdarəetmə paneli" onClick={() => setUserMenuOpen(false)} />
+                    ) : null}
                     {isBuyer ? <MenuItem to="/orders" icon={ClipboardList} label="Sifarişlərim" onClick={() => setUserMenuOpen(false)} /> : null}
                     <MenuItem to="/messages" icon={MessageCircle} label="Mesajlar" onClick={() => setUserMenuOpen(false)} />
                     <button

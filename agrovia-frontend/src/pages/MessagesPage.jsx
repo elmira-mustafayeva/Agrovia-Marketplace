@@ -21,7 +21,10 @@ export default function MessagesPage() {
     queryFn: () => api.getConversations(),
     enabled: Boolean(user),
   });
-  const conversations = conversationsQuery.data?.conversations || [];
+  // Exclude support conversations — those belong on /support.
+  const conversations = (conversationsQuery.data?.conversations || []).filter(
+    (c) => c.type !== 'support',
+  );
 
   // Live refresh the list (unread / last message) on any conversation update.
   useEffect(() => {

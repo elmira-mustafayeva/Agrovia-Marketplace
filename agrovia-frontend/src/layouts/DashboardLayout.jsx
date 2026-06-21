@@ -20,11 +20,8 @@ export default function DashboardLayout({ title, subtitle, children }) {
           <nav className="mt-6 space-y-2">
             <NavLink to="/dashboard" end className={linkClass}><LayoutDashboard className="h-4 w-4" />Overview</NavLink>
             <NavLink to="/orders" className={linkClass}><ShoppingCart className="h-4 w-4" />Orders</NavLink>
-            {/* <NavLink to="/cart" className={linkClass}><Package className="h-4 w-4" />Cart</NavLink> */}
-            {/* <NavLink to="/wishlist" className={linkClass}><Heart className="h-4 w-4" />Wishlist</NavLink> */}
             <NavLink to="/messages" className={linkClass}><MessageCircle className="h-4 w-4" />Mesajlar</NavLink>
             <button type="button" className={staticLinkClass} onClick={() => openChat({ type: 'support' })}><LifeBuoy className="h-4 w-4" />Dəstək</button>
-            {/* <NavLink to="/delivery" className={linkClass}><Truck className="h-4 w-4" />Çatdırılma kalkulyatoru</NavLink> */}
             <NavLink to="/auth" className={linkClass}><LogIn className="h-4 w-4" />Auth</NavLink>
           </nav>
         </aside>

@@ -27,6 +27,7 @@ import SellerDashboard from './pages/SellerDashboard';
 import CourierDashboard from './pages/CourierDashboard';
 import AdminDashboard from './pages/AdminDashboard';
 import MessagesPage from './pages/MessagesPage';
+import SupportPage from './pages/SupportPage';
 import BuyerProfilePage from './pages/BuyerProfilePage';
 import NotFoundPage from './pages/NotFoundPage';
 
@@ -107,6 +108,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <MessagesPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/support"
+          element={
+            <ProtectedRoute>
+              <SupportPage />
             </ProtectedRoute>
           }
         />
