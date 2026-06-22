@@ -45,6 +45,7 @@ export const api = {
   getOrder: (id) => http.get(`/orders/${id}`).then(unwrap),
   updateSellerProfile: (payload) => http.put('/seller/profile', payload).then(unwrap),
   updateAuthProfile: (payload) => http.put('/auth/profile', payload).then(unwrap),
+  uploadAvatar: (formData) => http.put('/auth/avatar', formData, { headers: { 'Content-Type': 'multipart/form-data' } }).then(unwrap),
   changePassword: (payload) => http.put('/auth/change-password', payload).then(unwrap),
   getNotifications: (params = {}) => http.get('/notifications', { params }).then(unwrap),
   markNotificationRead: (id) => http.put(`/notifications/${id}/read`).then(unwrap),

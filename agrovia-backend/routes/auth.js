@@ -7,6 +7,7 @@ const {
   login,
   getMe,
   updateProfile,
+  uploadAvatarHandler,
   changePassword,
   deactivateAccount,
   verifyEmail,
@@ -20,6 +21,7 @@ const {
 const { protect } = require('../middleware/auth');
 const { validateRegister, validateLogin } = require('../middleware/validators');
 const { authLimiter } = require('../middleware/rateLimiters');
+const { uploadAvatar } = require('../middleware/upload');
 
 // Rate limiters
 const loginLimiter = rateLimit({
@@ -70,6 +72,7 @@ router.put('/reset-password/:token', authLimiter, resetPassword);
 // ─── Protected routes ────────────────────────────────────────────────────────
 router.get('/me', protect, getMe);
 router.put('/profile', protect, updateProfile);
+router.put('/avatar', protect, uploadAvatar, uploadAvatarHandler);
 router.put('/change-password', protect, changePassword);
 router.delete('/deactivate', protect, deactivateAccount);
 router.delete('/delete-account', protect, deactivateAccount);
