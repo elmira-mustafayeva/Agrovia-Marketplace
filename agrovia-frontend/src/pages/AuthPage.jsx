@@ -7,7 +7,6 @@ import { Link, useNavigate } from 'react-router-dom';
 import { LogIn, UserPlus } from 'lucide-react';
 import { api } from '../api/agroviaApi';
 import { setCredentials } from '../features/auth/authSlice';
-import { SectionTitle } from '../components/Ui';
 import { useRegions } from '../hooks/useAgroviaData';
 import FormField from '../components/FormField';
 import PasswordInput from '../components/PasswordInput';
@@ -101,10 +100,14 @@ export default function AuthPage() {
     : null;
 
   return (
-    <section className="section-shell py-10">
-      <SectionTitle title="Daxil ol və ya qeydiyyatdan keç" />
-      <div className="grid gap-6 lg:grid-cols-[1fr_680px]">
-        <div className="panel">
+    <section className="section-shell flex min-h-[calc(100vh-120px)] items-center justify-center py-10">
+      <div className="mx-auto w-full max-w-xl">
+        <div className="mb-8 text-center">
+          <h1 className="text-3xl font-black text-slate-950 dark:text-white md:text-4xl">
+            Daxil ol və ya qeydiyyatdan keç
+          </h1>
+        </div>
+        <div className="rounded-[2rem] bg-white p-6 shadow-xl dark:bg-slate-950 md:p-8">
           <div className="flex flex-wrap gap-3">
             <button type="button" className={mode === 'login' ? 'btn-primary' : 'btn-secondary'} onClick={() => switchMode('login')}>
               <LogIn className="h-4 w-4" />Giriş
@@ -272,3 +275,4 @@ export default function AuthPage() {
     </section>
   );
 }
+
