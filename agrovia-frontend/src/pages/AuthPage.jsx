@@ -30,7 +30,11 @@ export default function AuthPage() {
 
   const loginMutation = useMutation({
     mutationFn: api.login,
-    onSuccess: (data) => { dispatch(setCredentials(data)); navigate('/dashboard'); },
+    onSuccess: (data) => {
+      dispatch(setCredentials(data));
+      if (data?.user?.role === 'buyer') { navigate('/', { replace: true }); return; }
+      navigate('/dashboard', { replace: true });
+    },
     onError: (err) => setServerError(err.response?.data?.message || 'Giriş alınmadı'),
   });
 
@@ -64,7 +68,12 @@ export default function AuthPage() {
   const registerMutation = useMutation({
     mutationFn: api.register,
     onSuccess: (data) => {
-      if (data?.token) { dispatch(setCredentials(data)); navigate('/dashboard'); return; }
+      if (data?.token) {
+        dispatch(setCredentials(data));
+        if (data?.user?.role === 'buyer') { navigate('/', { replace: true }); return; }
+        navigate('/dashboard', { replace: true });
+        return;
+      }
       setInfo(
         data?.data?.pendingApproval
           ? (data.message || 'Qeydiyyat qəbul edildi. Emailinizi doğrulayın və admin təsdiqini gözləyin.')
