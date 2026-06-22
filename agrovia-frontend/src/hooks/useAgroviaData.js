@@ -1,6 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api/agroviaApi';
 
+export const usePublicStats = () => useQuery({
+  queryKey: ['public-stats'],
+  queryFn: api.getPublicStats,
+  select: (data) => data.stats,
+  staleTime: 5 * 60 * 1000,
+});
+
 export const useCategories = () => useQuery({
   queryKey: ['categories'],
   queryFn: api.getCategories,

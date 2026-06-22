@@ -1,23 +1,44 @@
-import { useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { useSelector } from 'react-redux';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ArrowRight, Leaf, MapPin, Percent, Sparkles } from 'lucide-react';
-import { motion } from 'framer-motion';
-import { api } from '../api/agroviaApi';
-import { useCategories, useProducts, useRegions, useWishlist } from '../hooks/useAgroviaData';
-import { EmptyState, LoadingGrid, MiniInfo, ProductCard, SectionTitle } from '../components/Ui';
-import VideoHero from '../components/VideoHero';
+import { useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useSelector } from "react-redux";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  ArrowRight,
+  Leaf,
+  MapPin,
+  Percent,
+  Sparkles,
+  UsersRound,
+  Package,
+  ShoppingBag,
+} from "lucide-react";
+import { motion } from "framer-motion";
+import { api } from "../api/agroviaApi";
+import {
+  useCategories,
+  useProducts,
+  usePublicStats,
+  useRegions,
+  useWishlist,
+} from "../hooks/useAgroviaData";
+import {
+  EmptyState,
+  LoadingGrid,
+  MiniInfo,
+  ProductCard,
+  SectionTitle,
+} from "../components/Ui";
+import VideoHero from "../components/VideoHero";
 
 const Toast = ({ toast }) =>
   toast.message ? (
     <div
       className={`fixed bottom-16 left-1/2 z-[9999] -translate-x-1/2 rounded-2xl border px-6 py-3 text-sm font-medium shadow-soft ${
-        toast.type === 'error'
-          ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-700 dark:bg-red-950 dark:text-red-300'
-          : toast.type === 'info'
-            ? 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-300'
-            : 'border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+        toast.type === "error"
+          ? "border-red-200 bg-red-50 text-red-700 dark:border-red-700 dark:bg-red-950 dark:text-red-300"
+          : toast.type === "info"
+            ? "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-300"
+            : "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
       }`}
     >
       {toast.message}
@@ -29,74 +50,106 @@ export default function HomePage() {
   const queryClient = useQueryClient();
   const { token, user } = useSelector((state) => state.auth);
   const [roleWarning, setRoleWarning] = useState(false);
-  const [homeToast, setHomeToast] = useState({ message: '', type: '' });
+  const [homeToast, setHomeToast] = useState({ message: "", type: "" });
 
-  const showToast = (message, type = 'success') => {
+  const showToast = (message, type = "success") => {
     setHomeToast({ message, type });
-    setTimeout(() => setHomeToast({ message: '', type: '' }), 3000);
+    setTimeout(() => setHomeToast({ message: "", type: "" }), 3000);
   };
 
-  const isBuyer = user?.role === 'buyer';
+  const isBuyer = user?.role === "buyer";
   const wishlistQuery = useWishlist(!!token && isBuyer);
 
   const categoriesQuery = useCategories();
   const regionsQuery = useRegions();
-  const productsQuery = useProducts({ limit: 16, sort: 'newest', status: 'active' });
+  const productsQuery = useProducts({
+    limit: 16,
+    sort: "newest",
+    status: "active",
+  });
+  const publicStatsQuery = usePublicStats();
 
   const categories = categoriesQuery.data || [];
   const regions = regionsQuery.data || [];
   const allProducts = productsQuery.data || [];
 
-  const featuredProducts = useMemo(() => allProducts.slice(0, 8), [allProducts]);
+  const featuredProducts = useMemo(
+    () => allProducts.slice(0, 8),
+    [allProducts],
+  );
   const discountedProducts = useMemo(
-    () => allProducts.filter((p) => (p?.discount?.percentage || 0) > 0).slice(0, 6),
-    [allProducts]
+    () =>
+      allProducts.filter((p) => (p?.discount?.percentage || 0) > 0).slice(0, 6),
+    [allProducts],
   );
 
   const addToCartMutation = useMutation({
     mutationFn: api.addToCart,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['cart'] });
-      showToast('Məhsul səbətə əlavə edildi.');
+      queryClient.invalidateQueries({ queryKey: ["cart"] });
+      showToast("Məhsul səbətə əlavə edildi.");
     },
     onError: (err) => {
-      const type = err.response?.status === 409 ? 'info' : 'error';
-      showToast(err.response?.data?.message || 'Səbətə əlavə edilmədi.', type);
-    }
+      const type = err.response?.status === 409 ? "info" : "error";
+      showToast(err.response?.data?.message || "Səbətə əlavə edilmədi.", type);
+    },
   });
 
   const addToWishlistMutation = useMutation({
     mutationFn: api.addToWishlist,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['wishlist'] });
-      showToast('Məhsul wishlist-ə əlavə edildi.');
+      queryClient.invalidateQueries({ queryKey: ["wishlist"] });
+      showToast("Məhsul wishlist-ə əlavə edildi.");
     },
     onError: (err) => {
-      showToast(err.response?.data?.message || 'Wishlist-ə əlavə edilmədi.', 'error');
-    }
+      showToast(
+        err.response?.data?.message || "Wishlist-ə əlavə edilmədi.",
+        "error",
+      );
+    },
   });
 
   const removeFromWishlistMutation = useMutation({
     mutationFn: api.removeFromWishlist,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['wishlist'] });
-      showToast('Məhsul wishlist-dən silindi.');
+      queryClient.invalidateQueries({ queryKey: ["wishlist"] });
+      showToast("Məhsul wishlist-dən silindi.");
     },
     onError: (err) => {
-      showToast(err.response?.data?.message || 'Wishlist-dən silinmədi.', 'error');
-    }
+      showToast(
+        err.response?.data?.message || "Wishlist-dən silinmədi.",
+        "error",
+      );
+    },
   });
 
   const handleAddToCart = (product) => {
-    if (!token || !user) { navigate('/auth'); return; }
-    if (user.role !== 'buyer') { setRoleWarning(true); return; }
-    addToCartMutation.mutate({ productId: product._id, quantity: product.minOrderQuantity || 1 });
+    if (!token || !user) {
+      navigate("/auth");
+      return;
+    }
+    if (user.role !== "buyer") {
+      setRoleWarning(true);
+      return;
+    }
+    addToCartMutation.mutate({
+      productId: product._id,
+      quantity: product.minOrderQuantity || 1,
+    });
   };
 
   const handleWishlistToggle = (product) => {
-    if (!token || !user) { navigate('/auth'); return; }
-    if (user.role !== 'buyer') { setRoleWarning(true); return; }
-    const alreadyIn = wishlistQuery.data?.items?.some((item) => item.product?._id === product._id);
+    if (!token || !user) {
+      navigate("/auth");
+      return;
+    }
+    if (user.role !== "buyer") {
+      setRoleWarning(true);
+      return;
+    }
+    const alreadyIn = wishlistQuery.data?.items?.some(
+      (item) => item.product?._id === product._id,
+    );
     if (alreadyIn) {
       removeFromWishlistMutation.mutate(product._id);
     } else {
@@ -104,14 +157,35 @@ export default function HomePage() {
     }
   };
 
-  const highlights = useMemo(() => [
-    { label: 'Kateqoriyalar', value: categories.length || 0 },
-    { label: 'Regionlar', value: regions.length || 0 },
-    { label: 'Aktiv məhsullar', value: allProducts.length || 0 }
-  ], [categories.length, regions.length, allProducts.length]);
+  const publicStats = publicStatsQuery.data;
+
+  const highlights = useMemo(
+    () => [
+      {
+        label: "İstifadəçilər",
+        value: publicStats?.users || 0,
+        icon: UsersRound,
+      },
+
+      {
+        label: "Məhsullar",
+        value: publicStats?.products ?? allProducts.length,
+        icon: Package,
+      },
+
+      {
+        label: "Sifarişlər",
+        value: publicStats?.orders || 0,
+        icon: ShoppingBag,
+      },
+    ],
+    [publicStats, allProducts.length],
+  );
 
   const isInWishlist = (product) =>
-    wishlistQuery.data?.items?.some((item) => item.product?._id === product._id) ?? false;
+    wishlistQuery.data?.items?.some(
+      (item) => item.product?._id === product._id,
+    ) ?? false;
 
   return (
     <>
@@ -119,10 +193,17 @@ export default function HomePage() {
 
       {/* Hero */}
       <VideoHero>
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.55 }}>
-          <div className="chip mb-5 border-white/25 bg-white/10 text-white">Agrovia Marketplace</div>
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.55 }}
+        >
+          <div className="chip mb-5 border-white/25 bg-white/10 text-white">
+            Agrovia Marketplace
+          </div>
           <h1 className="max-w-3xl text-5xl font-extrabold leading-[1.1] tracking-tight sm:text-6xl lg:text-7xl">
-            Azərbaycanın yerli məhsulları<br className="hidden sm:block" /> bir platformada.
+            Azərbaycanın yerli məhsulları
+            <br className="hidden sm:block" /> bir platformada.
           </h1>
           <p className="mt-6 max-w-2xl text-lg leading-8 text-white/82">
             Artıq bir kliklə təbii və təzə məhsullar birbaşa süfrənizdə olacaq!
@@ -137,8 +218,8 @@ export default function HomePage() {
           </div>
           {highlights.some((h) => h.value > 0) ? (
             <div className="mt-10 grid max-w-xl gap-3 sm:grid-cols-3">
-              {highlights.map((item) => (
-                <MiniInfo key={item.label} label={item.label} value={item.value} icon={Sparkles} />
+              {highlights.map(({ label, value, icon }) => (
+                <MiniInfo key={label} label={label} value={value} icon={icon} />
               ))}
             </div>
           ) : null}
@@ -149,8 +230,17 @@ export default function HomePage() {
       {roleWarning ? (
         <div className="section-shell pt-5">
           <div className="flex items-center justify-between rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-300">
-            <span>Səbətə / wishlist-ə əlavə etmək yalnız alıcı hesabları üçün mümkündür.</span>
-            <button type="button" className="ml-4 underline" onClick={() => setRoleWarning(false)}>Bağla</button>
+            <span>
+              Səbətə / wishlist-ə əlavə etmək yalnız alıcı hesabları üçün
+              mümkündür.
+            </span>
+            <button
+              type="button"
+              className="ml-4 underline"
+              onClick={() => setRoleWarning(false)}
+            >
+              Bağla
+            </button>
           </div>
         </div>
       ) : null}
@@ -158,13 +248,19 @@ export default function HomePage() {
       {/* Categories */}
       <section className="section-shell py-14">
         <SectionTitle
-        
-          action={<Link to="/shop" className="btn-secondary">Hamısına bax</Link>}
+          action={
+            <Link to="/shop" className="btn-secondary">
+              Hamısına bax
+            </Link>
+          }
         />
         {categoriesQuery.isLoading ? (
           <LoadingGrid rows={4} />
         ) : categories.length === 0 ? (
-          <EmptyState title="Kateqoriya tapılmadı" description="Backend-dən kateqoriya gəlmədikdə bu sahə boş görünür." />
+          <EmptyState
+            title="Kateqoriya tapılmadı"
+            description="Backend-dən kateqoriya gəlmədikdə bu sahə boş görünür."
+          />
         ) : (
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {categories.map((category) => (
@@ -177,9 +273,11 @@ export default function HomePage() {
                   <Leaf className="h-5 w-5" />
                 </div>
                 <div className="min-w-0">
-                  <div className="truncate font-semibold text-ink dark:text-white">{category.name}</div>
+                  <div className="truncate font-semibold text-ink dark:text-white">
+                    {category.name}
+                  </div>
                   <div className="mt-0.5 truncate text-xs text-slate-400 dark:text-slate-500">
-                    {category.description || 'Aktiv kateqoriya'}
+                    {category.description || "Aktiv kateqoriya"}
                   </div>
                 </div>
               </Link>
@@ -191,7 +289,6 @@ export default function HomePage() {
       {/* Featured products */}
       <section className="section-shell py-14">
         <SectionTitle
-          
           title="Ən son məhsullar"
           action={
             <Link to="/shop" className="btn-primary">
@@ -202,7 +299,10 @@ export default function HomePage() {
         {productsQuery.isLoading ? (
           <LoadingGrid />
         ) : featuredProducts.length === 0 ? (
-          <EmptyState title="Məhsul tapılmadı" description="Filterlərə uyğun aktiv məhsul yoxdur." />
+          <EmptyState
+            title="Məhsul tapılmadı"
+            description="Filterlərə uyğun aktiv məhsul yoxdur."
+          />
         ) : (
           <>
             <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
@@ -232,8 +332,12 @@ export default function HomePage() {
           <SectionTitle
             title="Qiymət endirimlərini əldən vermə"
             action={
-              <Link to="/shop" className="inline-flex items-center gap-2 rounded-full border border-amber-300 bg-amber-50 px-5 py-2.5 text-sm font-semibold text-amber-700 transition hover:bg-amber-100 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300 dark:hover:bg-amber-500/20">
-                <Percent className="h-4 w-4" />Hamısına bax
+              <Link
+                to="/shop"
+                className="inline-flex items-center gap-2 rounded-full border border-amber-300 bg-amber-50 px-5 py-2.5 text-sm font-semibold text-amber-700 transition hover:bg-amber-100 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-300 dark:hover:bg-amber-500/20"
+              >
+                <Percent className="h-4 w-4" />
+                Hamısına bax
               </Link>
             }
           />

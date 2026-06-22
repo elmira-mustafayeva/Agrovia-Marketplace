@@ -4,6 +4,7 @@ const unwrap = (response) => response.data;
 
 export const api = {
   health: () => http.get('/health').then(unwrap),
+  getPublicStats: () => http.get('/stats').then(unwrap),
   getCategories: () => http.get('/categories').then(unwrap),
   getRegions: () => http.get('/regions').then(unwrap),
   getProducts: (params = {}) => http.get('/products', { params }).then(unwrap),
