@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useSelector, useDispatch } from 'react-redux';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AlertTriangle,
@@ -24,7 +24,6 @@ import {
   Settings,
   ShoppingBag,
   SlidersHorizontal,
-  Sprout,
   Star,
   MessageCircle,
   LifeBuoy,
@@ -53,7 +52,8 @@ import LocationPicker from '../components/LocationPicker';
 import PhoneInput from '../components/PhoneInput';
 import QuantityInput from '../components/QuantityInput';
 import { productSchema } from '../lib/validation';
-import { useOpenConversation } from '../hooks/useOpenConversation';
+import MessagesPage from './MessagesPage';
+import SupportPage from './SupportPage';
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
@@ -78,6 +78,8 @@ const BREADCRUMBS = {
   'add-product':  ['Məhsullar', 'Yeni məhsul'],
   orders:         ['Sifarişlər', 'Sifariş idarəetməsi'],
   reviews:        ['Rəylər', 'Məhsul rəyləri'],
+  messages:       ['Mesajlar', 'Söhbətlər'],
+  support:        ['Dəstək', 'Dəstək mərkəzi'],
   profile:        ['Profil', 'Satıcı məlumatları'],
   settings:       ['Tənzimləmələr'],
   'coming-soon':  ['Tezliklə'],
@@ -280,14 +282,11 @@ function StatsRow({ stats }) {
 function Sidebar({ section, onSection }) {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const openChat = useOpenConversation();
 
   return (
     <aside className="flex w-56 shrink-0 flex-col overflow-y-auto border-r border-slate-200 bg-white">
       <div className="flex items-center gap-2.5 px-5 py-5">
-        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-forest text-white shadow-lift">
-          <Sprout className="h-5 w-5" />
-        </div>
+        <img src="/agrovia-logo.svg" alt="Agrovia" className="h-9 w-9 rounded-xl object-contain" />
         <div>
           <div className="text-sm font-bold text-ink">Agrovia</div>
           <div className="text-[10px] text-slate-400">Satıcı Paneli</div>
@@ -314,8 +313,10 @@ function Sidebar({ section, onSection }) {
 
         <button
           type="button"
-          onClick={() => navigate('/messages')}
-          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-ink"
+          onClick={() => onSection('messages')}
+          className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors ${
+            section === 'messages' ? 'bg-forest text-white shadow-lift' : 'text-slate-600 hover:bg-slate-100 hover:text-ink'
+          }`}
         >
           <MessageCircle className="h-4 w-4 shrink-0" />Mesajlar
         </button>
@@ -347,7 +348,7 @@ function Sidebar({ section, onSection }) {
               <div className="text-[10px] text-slate-400">Köməyə ehtiyacınız var?</div>
             </div>
           </div>
-          <button type="button" onClick={() => openChat({ type: 'support' })} className="mt-2 text-xs font-medium text-forest hover:underline">
+          <button type="button" onClick={() => onSection('support')} className="mt-2 text-xs font-medium text-forest hover:underline">
             Bizimlə əlaqə
           </button>
         </div>
@@ -1439,9 +1440,8 @@ function OrderDetailModal({ orderId, onClose }) {
 
 // ─── Orders section ────────────────────────────────────────────────────────────
 
-function OrdersSection({ orders, isLoading }) {
+function OrdersSection({ orders, isLoading, openChat }) {
   const updateStatus = useUpdateOrderStatus();
-  const openChat = useOpenConversation();
   const [detailOrderId, setDetailOrderId] = useState(null);
 
   if (isLoading) {
@@ -1891,6 +1891,17 @@ function ComingSoonSection() {
 export default function SellerDashboard() {
   const { user } = useSelector(state => state.auth);
   const [section, setSection] = useState('overview');
+  const [, setSearchParams] = useSearchParams();
+
+  const handleDashboardChat = async (payload) => {
+    try {
+      const data = await api.createConversation(payload);
+      setSearchParams({ c: data.conversation._id });
+      setSection('messages');
+    } catch (e) {
+      alert(e?.response?.data?.message || 'Söhbət açıla bilmədi.');
+    }
+  };
 
   const dashboardQuery = useQuery({
     queryKey: ['dashboard', 'seller'],
@@ -1943,7 +1954,7 @@ export default function SellerDashboard() {
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <TopBar section={section} liveUser={liveUser} />
 
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className={`flex-1 p-6 ${(section === 'messages' || section === 'support') ? 'overflow-hidden' : 'overflow-y-auto'}`}>
           {dashboardQuery.isLoading ? (
             <div className="space-y-4">
               {Array.from({ length: 3 }).map((_, i) => (
@@ -1976,7 +1987,7 @@ export default function SellerDashboard() {
               )}
 
               {section === 'orders' && (
-                <OrdersSection orders={sellerOrders} isLoading={sellerOrdersQuery.isLoading} />
+                <OrdersSection orders={sellerOrders} isLoading={sellerOrdersQuery.isLoading} openChat={handleDashboardChat} />
               )}
 
               {section === 'reviews' && <SellerReviewsSection />}
@@ -1986,6 +1997,10 @@ export default function SellerDashboard() {
               )}
 
               {section === 'settings' && <SettingsSection />}
+
+              {section === 'messages' && <div className="-m-6 h-full"><MessagesPage embedded /></div>}
+
+              {section === 'support' && <div className="-m-6 h-full"><SupportPage embedded /></div>}
 
               {section === 'coming-soon' && <ComingSoonSection />}
             </>

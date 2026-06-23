@@ -59,6 +59,77 @@ exports.getDashboard = asyncHandler(async (req, res) => {
   ]);
   const f = financeAgg[0] || {};
 
+  // Analytics aggregations — added without touching existing stats fields
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const [
+    usersByRegion,
+    productsByCategory,
+    ordersByRegion,
+    unpaidOrdersCount,
+    delayedDeliveriesCount,
+    ordersTrend,
+    usersTrend,
+  ] = await Promise.all([
+    User.aggregate([
+      { $match: { 'address.region': { $exists: true, $ne: null } } },
+      { $group: {
+          _id: '$address.region',
+          value:   { $sum: 1 },
+          buyers:  { $sum: { $cond: [{ $eq: ['$role', 'buyer'] },  1, 0] } },
+          sellers: { $sum: { $cond: [{ $eq: ['$role', 'seller'] }, 1, 0] } },
+      } },
+      { $lookup: { from: 'regions', localField: '_id', foreignField: '_id', as: 'region' } },
+      { $unwind: { path: '$region', preserveNullAndEmptyArrays: true } },
+      { $project: { _id: 0, regionId: '$_id', label: { $ifNull: ['$region.name', 'Digər'] }, value: 1, buyers: 1, sellers: 1 } },
+      { $sort: { value: -1 } },
+      { $limit: 10 },
+    ]),
+    Product.aggregate([
+      { $match: { status: 'active' } },
+      { $group: { _id: '$category', value: { $sum: 1 } } },
+      { $lookup: { from: 'categories', localField: '_id', foreignField: '_id', as: 'cat' } },
+      { $unwind: { path: '$cat', preserveNullAndEmptyArrays: true } },
+      { $project: { _id: 0, categoryId: '$_id', label: { $ifNull: ['$cat.name', 'Digər'] }, value: 1 } },
+      { $sort: { value: -1 } },
+      { $limit: 10 },
+    ]),
+    Order.aggregate([
+      { $match: { 'deliveryAddress.region': { $exists: true, $ne: null } } },
+      { $group: { _id: '$deliveryAddress.region', value: { $sum: 1 } } },
+      { $lookup: { from: 'regions', localField: '_id', foreignField: '_id', as: 'region' } },
+      { $unwind: { path: '$region', preserveNullAndEmptyArrays: true } },
+      { $project: { _id: 0, regionId: '$_id', label: { $ifNull: ['$region.name', 'Digər'] }, value: 1 } },
+      { $sort: { value: -1 } },
+      { $limit: 10 },
+    ]),
+    Order.countDocuments({ 'payment.status': 'pending' }),
+    Order.countDocuments({
+      status: 'out_for_delivery',
+      createdAt: { $lt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000) },
+    }),
+    Order.aggregate([
+      { $match: { createdAt: { $gte: thirtyDaysAgo } } },
+      { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, orders: { $sum: 1 } } },
+      { $sort: { _id: 1 } },
+    ]),
+    User.aggregate([
+      { $match: { createdAt: { $gte: thirtyDaysAgo } } },
+      { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } }, users: { $sum: 1 } } },
+      { $sort: { _id: 1 } },
+    ]),
+  ]);
+
+  // Merge growth trend by date key
+  const growthMap = {};
+  for (const { _id, orders } of ordersTrend) {
+    growthMap[_id] = { date: _id, orders };
+  }
+  for (const { _id, users } of usersTrend) {
+    if (!growthMap[_id]) growthMap[_id] = { date: _id, orders: 0 };
+    growthMap[_id].users = users;
+  }
+  const growthTrend = Object.values(growthMap).sort((a, b) => a.date.localeCompare(b.date));
+
   res.status(200).json({
     success: true,
     stats: {
@@ -89,7 +160,20 @@ exports.getDashboard = asyncHandler(async (req, res) => {
         sellerPaid: round2(f.sellerPaid),
         courierPaid: round2(f.courierPaid)
       }
-    }
+    },
+    analytics: {
+      usersByRegion,
+      buyerSellerByRegion: usersByRegion.map(({ regionId, label, buyers, sellers }) => ({ regionId, label, buyers, sellers })),
+      productsByCategory,
+      ordersByRegion,
+      growthTrend,
+      actionRequired: {
+        pendingProducts,
+        unpaidOrders:       unpaidOrdersCount,
+        delayedDeliveries:  delayedDeliveriesCount,
+        pendingSellers,
+      },
+    },
   });
 });
 

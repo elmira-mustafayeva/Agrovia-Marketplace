@@ -3,8 +3,7 @@ const User = require('../models/User');
 const { calculateDeliveryPrice } = require('./deliveryPrice');
 const { getDistanceAndDuration, geocodeAddress } = require('./maps');
 
-// Intra-region floor — calculateDeliveryPrice throws on distance/duration <= 0, so a
-// near-zero (same point) delivery still needs a small positive distance to price.
+// Intra-region floor — prevents distance of 0 from reaching calculateDeliveryPrice.
 const INTRA_REGION_KM = Number(process.env.INTRA_REGION_KM || 4);
 
 // Last-resort region-name distances (km) — used ONLY when no coordinates are resolvable.
@@ -42,22 +41,23 @@ const haversineKm = (a, b) => {
 
 const estimateDuration = (km) => Math.ceil(km * 1.5);
 
-// Distance/duration between two EXACT coordinate points: Google Distance Matrix → Haversine.
+// Distance/duration between two coordinate points: Google Distance Matrix → Haversine → floor.
+// Returns note indicating which method succeeded.
 async function routeBetween(originCoords, destCoords) {
   try {
     const r = await getDistanceAndDuration(
       `${originCoords.lat},${originCoords.lng}`,
       `${destCoords.lat},${destCoords.lng}`
     );
-    if (r && r.distanceKm > 0) return r;
+    if (r && r.distanceKm > 0) return { ...r, note: 'google_api' };
   } catch (_) {
     // fall through to Haversine
   }
 
   const km = Math.round(haversineKm(originCoords, destCoords) * 100) / 100;
-  if (km > 0) return { distanceKm: km, durationMinutes: estimateDuration(km) };
+  if (km > 0) return { distanceKm: km, durationMinutes: estimateDuration(km), note: 'haversine' };
 
-  return { distanceKm: INTRA_REGION_KM, durationMinutes: estimateDuration(INTRA_REGION_KM) };
+  return { distanceKm: INTRA_REGION_KM, durationMinutes: estimateDuration(INTRA_REGION_KM), note: 'intra_region_default' };
 }
 
 // Resolve the EXACT destination point: provided valid location → geocode "<street>, <region>".
@@ -104,14 +104,13 @@ async function resolveOriginCoords(items, originRegion) {
 }
 
 /**
- * Distance-based delivery from each distinct origin region (resolved to the best origin
- * point — product/seller pickup, falling back to region) to the buyer's EXACT geocoded
- * destination. Fee = sum over distinct origin regions.
+ * Calculate a single delivery fee for an order from one or more origin regions to the buyer's
+ * destination. Uses the FARTHEST origin distance — never sums per-region fees.
  *
  * @param {Array<{productLocation?:{lat,lng}, sellerId?:any, regionId:any}>} originItems
  * @param {{destRegionId:any, destStreet?:string, destLocation?:{lat,lng}}} dest
- * @returns {Promise<{distanceKm:number, durationMinutes:number, price:number, destLocation:{lat,lng}}>}
- * @throws 'DEST_GEOCODE_FAILED' when the buyer address can't be geocoded; other errors on missing data.
+ * @returns {Promise<{distanceKm, durationMinutes, price, sameRegion, pricingTier, originCount, note, destLocation}>}
+ * @throws 'DEST_GEOCODE_FAILED' | 'DEST_REGION_NOT_FOUND' | 'NO_ORIGIN_REGION' | 'ORIGIN_REGION_NOT_FOUND' | 'ORIGIN_DISTANCE_UNRESOLVED'
  */
 async function computeOrderDelivery(originItems, { destRegionId, destStreet, destLocation } = {}) {
   const destRegion = await Region.findById(destRegionId);
@@ -129,9 +128,8 @@ async function computeOrderDelivery(originItems, { destRegionId, destStreet, des
   }
   if (groups.size === 0) throw new Error('NO_ORIGIN_REGION');
 
-  let totalPrice = 0;
-  let maxDistanceKm = 0;
-  let maxDurationMinutes = 0;
+  // Collect distance data for each origin — do NOT price inside this loop.
+  const originResults = [];
 
   for (const [regionId, items] of groups) {
     const originRegion = await Region.findById(regionId);
@@ -139,31 +137,47 @@ async function computeOrderDelivery(originItems, { destRegionId, destStreet, des
 
     let distanceKm;
     let durationMinutes;
+    let note;
 
     const originCoords = await resolveOriginCoords(items, originRegion);
     if (originCoords) {
-      ({ distanceKm, durationMinutes } = await routeBetween(originCoords, destCoords));
+      const result = await routeBetween(originCoords, destCoords);
+      distanceKm = result.distanceKm;
+      durationMinutes = result.durationMinutes;
+      note = result.note;
     } else {
       const km = KNOWN_DISTANCES[`${originRegion.name}-${destRegion.name}`] ||
         KNOWN_DISTANCES[`${destRegion.name}-${originRegion.name}`];
       if (!km) throw new Error('ORIGIN_DISTANCE_UNRESOLVED');
       distanceKm = km;
       durationMinutes = estimateDuration(km);
+      note = 'known_table';
     }
 
-    totalPrice += calculateDeliveryPrice({ distanceKm, durationMinutes });
-
-    if (distanceKm > maxDistanceKm) {
-      maxDistanceKm = distanceKm;
-      maxDurationMinutes = durationMinutes;
-    }
+    originResults.push({ regionId, distanceKm, durationMinutes, note });
   }
 
+  // Use the farthest origin — one price for the whole order.
+  const farthest = originResults.reduce((max, o) => (o.distanceKm > max.distanceKm ? o : max));
+
+  const sameRegion = farthest.regionId === destRegion._id.toString();
+  const price = calculateDeliveryPrice({ distanceKm: farthest.distanceKm, sameRegion });
+
+  const pricingTier = sameRegion
+    ? 'same_region'
+    : farthest.distanceKm <= 100
+      ? 'cross_region'
+      : 'long_distance';
+
   return {
-    distanceKm: maxDistanceKm,
-    durationMinutes: maxDurationMinutes,
-    price: Math.round(totalPrice * 100) / 100,
-    destLocation: destCoords
+    distanceKm: farthest.distanceKm,
+    durationMinutes: farthest.durationMinutes,
+    price: Math.round(price * 100) / 100,
+    sameRegion,
+    pricingTier,
+    originCount: groups.size,
+    note: farthest.note,
+    destLocation: destCoords,
   };
 }
 

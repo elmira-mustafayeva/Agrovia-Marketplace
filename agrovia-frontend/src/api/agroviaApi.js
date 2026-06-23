@@ -4,6 +4,7 @@ const unwrap = (response) => response.data;
 
 export const api = {
   health: () => http.get('/health').then(unwrap),
+  getPublicStats: () => http.get('/stats').then(unwrap),
   getCategories: () => http.get('/categories').then(unwrap),
   getRegions: () => http.get('/regions').then(unwrap),
   getProducts: (params = {}) => http.get('/products', { params }).then(unwrap),
@@ -44,6 +45,7 @@ export const api = {
   getOrder: (id) => http.get(`/orders/${id}`).then(unwrap),
   updateSellerProfile: (payload) => http.put('/seller/profile', payload).then(unwrap),
   updateAuthProfile: (payload) => http.put('/auth/profile', payload).then(unwrap),
+  uploadAvatar: (formData) => http.put('/auth/avatar', formData, { headers: { 'Content-Type': 'multipart/form-data' } }).then(unwrap),
   changePassword: (payload) => http.put('/auth/change-password', payload).then(unwrap),
   getNotifications: (params = {}) => http.get('/notifications', { params }).then(unwrap),
   markNotificationRead: (id) => http.put(`/notifications/${id}/read`).then(unwrap),
@@ -60,6 +62,18 @@ export const api = {
   adminPendingProducts: () => http.get('/admin/products/pending').then(unwrap),
   approveProduct: (id, payload) => http.put(`/admin/products/${id}/approve`, payload).then(unwrap),
   markPayout: (id, target) => http.put(`/admin/orders/${id}/payout`, { target }).then(unwrap),
+  // Admin category CRUD (full CRUD exists at /admin/categories)
+  adminGetCategories: () => http.get('/admin/categories').then(unwrap),
+  adminCreateCategory: (payload) => http.post('/admin/categories', payload).then(unwrap),
+  adminUpdateCategory: (id, payload) => http.put(`/admin/categories/${id}`, payload).then(unwrap),
+  adminDeleteCategory: (id) => http.delete(`/admin/categories/${id}`).then(unwrap),
+  // Admin region CRUD (full CRUD exists at /admin/regions)
+  adminGetRegions: () => http.get('/admin/regions').then(unwrap),
+  adminCreateRegion: (payload) => http.post('/admin/regions', payload).then(unwrap),
+  adminUpdateRegion: (id, payload) => http.put(`/admin/regions/${id}`, payload).then(unwrap),
+  adminDeleteRegion: (id) => http.delete(`/admin/regions/${id}`).then(unwrap),
+  // Admin user status toggle
+  adminToggleUserStatus: (id) => http.put(`/admin/users/${id}/status`, {}).then(unwrap),
   getConversations: (params = {}) => http.get('/conversations', { params }).then(unwrap),
   createConversation: (payload) => http.post('/conversations', payload).then(unwrap),
   getMessages: (id) => http.get(`/conversations/${id}/messages`).then(unwrap),

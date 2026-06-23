@@ -106,7 +106,7 @@ export default function QuantityInput({
         </button>
 
         <input
-          type="number"
+          type="text"
           value={draft}
           onChange={handleChange}
           onBlur={handleBlur}

@@ -7,7 +7,6 @@ import { Link, useNavigate } from 'react-router-dom';
 import { LogIn, UserPlus } from 'lucide-react';
 import { api } from '../api/agroviaApi';
 import { setCredentials } from '../features/auth/authSlice';
-import { SectionTitle } from '../components/Ui';
 import { useRegions } from '../hooks/useAgroviaData';
 import FormField from '../components/FormField';
 import PasswordInput from '../components/PasswordInput';
@@ -31,7 +30,11 @@ export default function AuthPage() {
 
   const loginMutation = useMutation({
     mutationFn: api.login,
-    onSuccess: (data) => { dispatch(setCredentials(data)); navigate('/dashboard'); },
+    onSuccess: (data) => {
+      dispatch(setCredentials(data));
+      if (data?.user?.role === 'buyer') { navigate('/', { replace: true }); return; }
+      navigate('/dashboard', { replace: true });
+    },
     onError: (err) => setServerError(err.response?.data?.message || 'Giriş alınmadı'),
   });
 
@@ -65,7 +68,12 @@ export default function AuthPage() {
   const registerMutation = useMutation({
     mutationFn: api.register,
     onSuccess: (data) => {
-      if (data?.token) { dispatch(setCredentials(data)); navigate('/dashboard'); return; }
+      if (data?.token) {
+        dispatch(setCredentials(data));
+        if (data?.user?.role === 'buyer') { navigate('/', { replace: true }); return; }
+        navigate('/dashboard', { replace: true });
+        return;
+      }
       setInfo(
         data?.data?.pendingApproval
           ? (data.message || 'Qeydiyyat qəbul edildi. Emailinizi doğrulayın və admin təsdiqini gözləyin.')
@@ -101,10 +109,14 @@ export default function AuthPage() {
     : null;
 
   return (
-    <section className="section-shell py-10">
-      <SectionTitle eyebrow="Autentication" title="Daxil ol və ya qeydiyyatdan keç" description="Login və register backend auth endpoint-lərinə bağlıdır." />
-      <div className="grid gap-6 lg:grid-cols-[1fr_420px]">
-        <div className="panel">
+    <section className="section-shell flex min-h-[calc(100vh-120px)] items-center justify-center py-10">
+      <div className="mx-auto w-full max-w-xl">
+        <div className="mb-8 text-center">
+          <h1 className="text-3xl font-black text-slate-950 dark:text-white md:text-4xl">
+            Daxil ol və ya qeydiyyatdan keç
+          </h1>
+        </div>
+        <div className="rounded-[2rem] bg-white p-6 shadow-xl dark:bg-slate-950 md:p-8">
           <div className="flex flex-wrap gap-3">
             <button type="button" className={mode === 'login' ? 'btn-primary' : 'btn-secondary'} onClick={() => switchMode('login')}>
               <LogIn className="h-4 w-4" />Giriş
@@ -268,21 +280,8 @@ export default function AuthPage() {
             </form>
           )}
         </div>
-
-        <div className="panel space-y-4">
-          <div className="rounded-3xl bg-ink p-5 text-white">
-            <div className="text-sm font-semibold uppercase tracking-[0.18em] text-white/50">Daxil ol sonra</div>
-            <ul className="mt-4 space-y-2 text-sm leading-6 text-white/75">
-              <li>• Dinamik cart və wishlist açılır</li>
-              <li>• Role-based dashboard görünür</li>
-              <li>• Token localStorage-da saxlanır</li>
-            </ul>
-          </div>
-          <div className="rounded-3xl bg-slate-50 p-5 text-sm leading-6 text-slate-600">
-            Seller, courier və admin panelləri backend roluna görə açılır. Buyers üçün səbət, sifariş və wishlist axını aktivdir.
-          </div>
-        </div>
       </div>
     </section>
   );
 }
+

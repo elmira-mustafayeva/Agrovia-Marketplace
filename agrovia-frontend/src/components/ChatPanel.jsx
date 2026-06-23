@@ -22,7 +22,7 @@ function headerTitle(convo, myId) {
   return nameOf(other) || 'İstifadəçi';
 }
 
-export default function ChatPanel({ conversationId, myId }) {
+export default function ChatPanel({ conversationId, myId, panelClass = 'h-[70vh]' }) {
   const queryClient = useQueryClient();
   const [text, setText] = useState('');
   const [otherTyping, setOtherTyping] = useState(false);
@@ -128,13 +128,13 @@ export default function ChatPanel({ conversationId, myId }) {
   if (!conversationId) {
     return (
       <div className="panel flex h-full items-center justify-center">
-        <EmptyState title="Söhbət seçin" description="Soldan bir söhbət seçin və ya yeni söhbət başladın." />
+        
       </div>
     );
   }
 
   return (
-    <div className="panel flex h-[70vh] flex-col">
+    <div className={`panel flex flex-col ${panelClass}`}>
       {/* Header */}
       <div className="flex items-center justify-between gap-3 border-b border-slate-100 pb-3">
         <div className="min-w-0">

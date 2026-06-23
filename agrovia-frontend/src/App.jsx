@@ -16,14 +16,27 @@ import AuthPage from './pages/AuthPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import VerifyEmailPage from './pages/VerifyEmailPage';
+import CategoriesPage from './pages/CategoriesPage';
+import CategoryProductsPage from './pages/CategoryProductsPage';
+import RegionsPage from './pages/RegionsPage';
+import RegionProductsPage from './pages/RegionProductsPage';
+import StoresPage from './pages/StoresPage';
+import StoreProductsPage from './pages/StoreProductsPage';
 import DashboardPage from './pages/DashboardPage';
 import SellerDashboard from './pages/SellerDashboard';
+import CourierDashboard from './pages/CourierDashboard';
+import AdminDashboard from './pages/AdminDashboard';
 import MessagesPage from './pages/MessagesPage';
+import SupportPage from './pages/SupportPage';
+import BuyerProfilePage from './pages/BuyerProfilePage';
 import NotFoundPage from './pages/NotFoundPage';
 
 function DashboardRoute() {
   const { user } = useSelector((state) => state.auth);
   if (user?.role === 'seller') return <SellerDashboard />;
+  if (user?.role === 'buyer') return <BuyerProfilePage />;
+  if (user?.role === 'courier') return <CourierDashboard />;
+  if (user?.role === 'admin') return <AdminDashboard />;
   return (
     <DashboardLayout title="İdarəetmə paneli" subtitle="Roluna uyğun dinamik məlumatlara bax.">
       <DashboardPage />
@@ -46,6 +59,12 @@ export default function App() {
       <Routes>
         <Route path="/" element={<HomePage />} />
         <Route path="/shop" element={<ShopPage />} />
+        <Route path="/categories" element={<CategoriesPage />} />
+        <Route path="/categories/:categoryId" element={<CategoryProductsPage />} />
+        <Route path="/regions" element={<RegionsPage />} />
+        <Route path="/regions/:regionId" element={<RegionProductsPage />} />
+        <Route path="/stores" element={<StoresPage />} />
+        <Route path="/stores/:sellerId" element={<StoreProductsPage />} />
         <Route path="/products/:id" element={<ProductPage />} />
         <Route path="/delivery" element={<DeliveryPage />} />
         <Route path="/auth" element={<AuthPage />} />
@@ -89,6 +108,22 @@ export default function App() {
           element={
             <ProtectedRoute>
               <MessagesPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/support"
+          element={
+            <ProtectedRoute>
+              <SupportPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <BuyerProfilePage />
             </ProtectedRoute>
           }
         />

@@ -99,9 +99,7 @@ export default function WishlistPage() {
 
       <section className="section-shell py-10">
         <SectionTitle
-          eyebrow="Wishlist"
           title="Seçilmiş məhsullar"
-          description="Wishlist data-si serverdən gəlir və alış üçün səbətə köçürülə bilər."
         />
 
         {wishlistQuery.isLoading ? (
@@ -167,16 +165,6 @@ export default function WishlistPage() {
                   </div>
                 </div>
               ))}
-            </div>
-            <div className="panel h-fit space-y-4">
-              <div className="text-sm font-semibold text-slate-500">Wishlist xülasəsi</div>
-              <div className="rounded-3xl bg-slate-50 p-5 text-sm leading-6 text-slate-600">
-                Məhsulların statusunu izləmək və stok aktiv olduqda sürətli almaq üçün ideal sahədir.
-              </div>
-              <div className="rounded-3xl bg-slate-50 p-4 text-center">
-                <div className="text-2xl font-semibold text-ink">{items.length}</div>
-                <div className="mt-1 text-xs text-slate-500">wishlist-dəki məhsul</div>
-              </div>
             </div>
           </div>
         )}

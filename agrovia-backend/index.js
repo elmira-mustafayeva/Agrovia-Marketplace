@@ -63,6 +63,7 @@ const adminRoutes = require('./routes/admin');
 const notificationRoutes = require('./routes/notifications');
 const paymentRoutes = require('./routes/payments');
 const conversationRoutes = require('./routes/conversations');
+const statsRoutes = require('./routes/stats');
 
 // Health check
 app.get('/', (req, res) => {
@@ -99,6 +100,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/conversations', conversationLimiter, conversationRoutes);
+app.use('/api/stats', statsRoutes);
 
 // 404 handler
 app.use((req, res) => {

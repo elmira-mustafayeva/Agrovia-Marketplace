@@ -432,6 +432,22 @@ exports.updateProfile = asyncHandler(async (req, res) => {
   });
 });
 
+// ─── UPLOAD AVATAR ────────────────────────────────────────────────────────────
+// PUT /api/auth/avatar  (protected, multipart/form-data)
+exports.uploadAvatarHandler = asyncHandler(async (req, res) => {
+  if (!req.file) throw new ApiError(400, 'Şəkil seçilməyib');
+  const user = await User.findByIdAndUpdate(
+    req.user.id,
+    { avatar: req.file.path },
+    { new: true }
+  );
+  res.status(200).json({
+    success: true,
+    message: 'Avatar yeniləndi',
+    user: userPayload(user)
+  });
+});
+
 // ─── CHANGE PASSWORD ──────────────────────────────────────────────────────────
 // PUT /api/auth/change-password  (protected)
 exports.changePassword = asyncHandler(async (req, res) => {

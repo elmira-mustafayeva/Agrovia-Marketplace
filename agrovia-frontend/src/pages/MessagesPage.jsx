@@ -8,7 +8,7 @@ import { SectionTitle } from '../components/Ui';
 import ConversationList from '../components/ConversationList';
 import ChatPanel from '../components/ChatPanel';
 
-export default function MessagesPage() {
+export default function MessagesPage({ embedded = false }) {
   const { user } = useSelector((state) => state.auth);
   const myId = user?.id || user?._id;
   const isAdmin = user?.role === 'admin';
@@ -21,7 +21,10 @@ export default function MessagesPage() {
     queryFn: () => api.getConversations(),
     enabled: Boolean(user),
   });
-  const conversations = conversationsQuery.data?.conversations || [];
+  // Exclude support conversations — those belong on /support.
+  const conversations = (conversationsQuery.data?.conversations || []).filter(
+    (c) => c.type !== 'support',
+  );
 
   // Live refresh the list (unread / last message) on any conversation update.
   useEffect(() => {
@@ -33,6 +36,29 @@ export default function MessagesPage() {
   }, [queryClient]);
 
   const onSelect = (id) => setSearchParams({ c: id });
+
+  if (embedded) {
+    return (
+      <div className="flex h-full">
+        <div className="w-[280px] shrink-0 overflow-y-auto border-r border-slate-200 bg-white">
+          {conversationsQuery.isLoading ? (
+            <div className="p-4 text-sm text-slate-400">Yüklənir…</div>
+          ) : (
+            <ConversationList
+              conversations={conversations}
+              selectedId={selectedId}
+              onSelect={onSelect}
+              myId={myId}
+              isAdmin={isAdmin}
+            />
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <ChatPanel conversationId={selectedId} myId={myId} panelClass="h-full" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <section className="section-shell py-8">

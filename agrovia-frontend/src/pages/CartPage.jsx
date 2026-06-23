@@ -1,14 +1,15 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
-import { Heart, ShoppingBag, Trash2 } from 'lucide-react';
+import { useSelector } from 'react-redux';
+import { CreditCard, Heart, ShoppingBag, Trash2 } from 'lucide-react';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, CardNumberElement, CardExpiryElement, CardCvcElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { api } from '../api/agroviaApi';
 import { useCart, useRegions, useWishlist } from '../hooks/useAgroviaData';
-import { EmptyState, LoadingGrid, SectionTitle, UNIT_LABELS, formatPrice } from '../components/Ui';
+import { EmptyState, LoadingGrid, UNIT_LABELS, formatPrice } from '../components/Ui';
 import LocationPicker from '../components/LocationPicker';
 import FormField from '../components/FormField';
 import PhoneInput from '../components/PhoneInput';
@@ -23,6 +24,7 @@ const stripeFieldStyle = {
   base: { fontSize: '14px', color: '#1e293b', '::placeholder': { color: '#94a3b8' } }
 };
 
+// ── Stripe card form (logic unchanged) ───────────────────────────────────────
 function StripeCardForm({ clientSecret, onSuccess, onCancel }) {
   const stripe = useStripe();
   const elements = useElements();
@@ -79,25 +81,43 @@ function StripeCardForm({ clientSecret, onSuccess, onCancel }) {
   );
 }
 
+// ── Checkout step header ──────────────────────────────────────────────────────
+function SectionStep({ number, label, action }) {
+  return (
+    <div className="flex items-center justify-between">
+      <div className="flex items-center gap-2.5">
+        <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-700 text-[11px] font-bold text-white">
+          {number}
+        </span>
+        <span className="text-base font-bold text-slate-900">{label}</span>
+      </div>
+      {action}
+    </div>
+  );
+}
+
+// ── CartPage ──────────────────────────────────────────────────────────────────
 export default function CartPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const user = useSelector((s) => s.auth.user);
   const cartQuery = useCart();
   const cart = cartQuery.data;
   const regions = useRegions().data || [];
 
-  const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [checkoutError, setCheckoutError] = useState('');
   const [pendingPayment, setPendingPayment] = useState(null);
   const [confirmPending, setConfirmPending] = useState(null);
   const [toast, setToast] = useState({ message: '', type: '' });
+  const [prefillApplied, setPrefillApplied] = useState(false);
+  const hasPrefilledRef = useRef(false);
 
-  // Delivery estimate state (external to RHF — driven by map/region/street)
+  // Delivery estimate state (driven by map/region/street)
   const [deliveryEstimate, setDeliveryEstimate] = useState(null);
   const [pickedLocation, setPickedLocation] = useState(null);
   const [mapAvailable, setMapAvailable] = useState(false);
 
-  // ── Checkout form (RHF + Zod) ──────────────────────────────────────────────
+  // ── Checkout form (RHF + Zod) ─────────────────────────────────────────────
   const {
     register,
     handleSubmit,
@@ -113,7 +133,49 @@ export default function CartPage() {
   const watchedRegion = watch('region');
   const watchedStreet = watch('street');
 
-  // ── Mutations ──────────────────────────────────────────────────────────────
+  // ── Prefill from logged-in buyer profile (runs once when user data arrives) ─
+  useEffect(() => {
+    if (!user || hasPrefilledRef.current) return;
+
+    const fullName = [user.firstName, user.lastName].filter(Boolean).join(' ');
+    const regionId =
+      typeof user.address?.region === 'object'
+        ? user.address.region?._id?.toString()
+        : user.address?.region?.toString() || '';
+
+    let anyPrefill = false;
+
+    if (fullName && !watch('recipientName')) {
+      setValue('recipientName', fullName, { shouldValidate: false });
+      anyPrefill = true;
+    }
+    if (user.phone && !watch('phone')) {
+      setValue('phone', user.phone, { shouldValidate: false });
+      anyPrefill = true;
+    }
+    if (regionId && !watch('region')) {
+      setValue('region', regionId, { shouldValidate: false });
+      anyPrefill = true;
+    }
+    if (user.address?.street && !watch('street')) {
+      setValue('street', user.address.street, { shouldValidate: false });
+      anyPrefill = true;
+    }
+
+    if (anyPrefill) {
+      setPrefillApplied(true);
+      // Trigger delivery estimate if both region and street/location are available
+      const effectiveRegion = regionId || watch('region');
+      const effectiveStreet = user.address?.street || watch('street');
+      if (effectiveRegion && effectiveStreet?.trim()) {
+        triggerEstimate(effectiveRegion, effectiveStreet, pickedLocation);
+      }
+    }
+
+    hasPrefilledRef.current = true;
+  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Mutations ─────────────────────────────────────────────────────────────
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast({ message: '', type: '' }), 3000);
@@ -135,10 +197,7 @@ export default function CartPage() {
     }
   };
 
-  const handleRegionChange = (e) => {
-    triggerEstimate(e.target.value, watchedStreet, pickedLocation);
-  };
-
+  const handleRegionChange = (e) => triggerEstimate(e.target.value, watchedStreet, pickedLocation);
   const handleStreetBlur = () => triggerEstimate(watchedRegion, watchedStreet, pickedLocation);
 
   const handlePickLocation = ({ lat, lng, addressText }) => {
@@ -202,7 +261,7 @@ export default function CartPage() {
     else addToWishlistMutation.mutate({ productId });
   };
 
-  // ── Checkout submit (wrapped by RHF handleSubmit) ─────────────────────────
+  // ── Checkout submit (logic unchanged) ────────────────────────────────────
   const submitOrder = handleSubmit(async (data) => {
     setCheckoutError('');
 
@@ -248,29 +307,49 @@ export default function CartPage() {
 
   const handleStripeCancel = () => navigate('/orders');
 
-  // ── Derived values ─────────────────────────────────────────────────────────
+  // ── Derived values ────────────────────────────────────────────────────────
   const items = cart?.items || [];
   const subtotal = items.reduce((sum, item) => sum + (item.price || item.product?.price || 0) * item.quantity, 0);
   const deliveryFee = deliveryEstimate?.fee ?? null;
   const total = subtotal + (deliveryFee || 0);
   const isSubmitting = orderMutation.isPending || paymentIntentMutation.isPending;
+  const needsDeliveryHint = !watchedRegion || (!watchedStreet?.trim() && !pickedLocation);
 
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <>
+      {/* Toast */}
       {toast.message ? (
-        <div className={`fixed bottom-16 left-1/2 z-[9999] -translate-x-1/2 rounded-2xl border px-6 py-3 text-sm font-medium shadow-soft ${toast.type === 'error' ? 'border-red-200 bg-red-50 text-red-700' : toast.type === 'info' ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-emerald-200 bg-emerald-50 text-emerald-700'}`}>
+        <div className={`fixed bottom-16 left-1/2 z-[9999] -translate-x-1/2 rounded-2xl border px-6 py-3 text-sm font-medium shadow-soft ${
+          toast.type === 'error' ? 'border-red-200 bg-red-50 text-red-700'
+          : toast.type === 'info' ? 'border-amber-200 bg-amber-50 text-amber-800'
+          : 'border-emerald-200 bg-emerald-50 text-emerald-700'
+        }`}>
           {toast.message}
         </div>
       ) : null}
 
+      {/* Delete confirm modal */}
       {confirmPending ? (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/50" onClick={(e) => { if (e.target === e.currentTarget) setConfirmPending(null); }}>
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/50"
+          onClick={(e) => { if (e.target === e.currentTarget) setConfirmPending(null); }}
+        >
           <div className="mx-4 w-full max-w-sm space-y-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-soft">
             <div className="text-base font-semibold text-ink">Bu məhsulu sil?</div>
-            <p className="text-sm text-slate-600"><strong>{confirmPending.productName}</strong> məhsulunu səbətdən silmək istədiyinizə əminsiniz?</p>
+            <p className="text-sm text-slate-600">
+              <strong>{confirmPending.productName}</strong> Məhsulu səbətdən silmək istədiyinizə əminsiniz?
+            </p>
             <div className="grid grid-cols-2 gap-3">
-              <button type="button" className="btn-secondary" onClick={() => setConfirmPending(null)} disabled={removeMutation.isPending}>Ləğv et</button>
-              <button type="button" className="inline-flex items-center justify-center gap-2 rounded-full bg-red-500 px-5 py-3 text-sm font-semibold text-white transition hover:bg-red-600 disabled:opacity-50" onClick={() => removeMutation.mutate(confirmPending.itemId)} disabled={removeMutation.isPending}>
+              <button type="button" className="btn-secondary" onClick={() => setConfirmPending(null)} disabled={removeMutation.isPending}>
+                Ləğv et
+              </button>
+              <button
+                type="button"
+                className="inline-flex items-center justify-center gap-2 rounded-full bg-red-500 px-5 py-3 text-sm font-semibold text-white transition hover:bg-red-600 disabled:opacity-50"
+                onClick={() => removeMutation.mutate(confirmPending.itemId)}
+                disabled={removeMutation.isPending}
+              >
                 {removeMutation.isPending ? 'Silinir...' : 'Sil'}
               </button>
             </div>
@@ -278,17 +357,9 @@ export default function CartPage() {
         </div>
       ) : null}
 
-      <section className="section-shell py-10">
-        <SectionTitle
-          action={!pendingPayment ? (
-            <button type="button" className="btn-secondary" onClick={() => clearMutation.mutate()}>Səbəti boşalt</button>
-          ) : null}
-        />
-
-        {cartQuery.isLoading ? (
-          <LoadingGrid rows={2} />
-
-        ) : pendingPayment ? (
+      <section className="section-shell py-8">
+        {/* ── Payment mode ── */}
+        {pendingPayment ? (
           <div className="mx-auto max-w-lg">
             <div className="panel space-y-6">
               <div>
@@ -300,7 +371,11 @@ export default function CartPage() {
               ) : null}
               {stripePromise ? (
                 <Elements stripe={stripePromise} options={{ locale: 'en' }}>
-                  <StripeCardForm clientSecret={pendingPayment.clientSecret} onSuccess={handleStripeSuccess} onCancel={handleStripeCancel} />
+                  <StripeCardForm
+                    clientSecret={pendingPayment.clientSecret}
+                    onSuccess={handleStripeSuccess}
+                    onCancel={handleStripeCancel}
+                  />
                 </Elements>
               ) : (
                 <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
@@ -310,179 +385,264 @@ export default function CartPage() {
             </div>
           </div>
 
+        ) : cartQuery.isLoading ? (
+          <LoadingGrid rows={2} />
+
         ) : items.length === 0 ? (
-          <EmptyState icon={ShoppingBag} title="Səbət boşdur" description="Məhsul əlavə edib burada miqdarını dəyişə bilərsən." action={<Link className="btn-primary" to="/shop">Alış-verişə başla</Link>} />
+          <EmptyState
+            icon={ShoppingBag}
+            title="Səbət boşdur"
+            description="Məhsul əlavə edib burada miqdarını dəyişə bilərsiniz."
+            action={<Link className="btn-primary" to="/shop">Alış-verişə başla</Link>}
+          />
 
         ) : (
-          <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
-            {/* Cart items */}
-            <div className="space-y-4">
-              {items.map((item) => (
-                <div key={item._id} className="panel flex items-start gap-4">
-                  <img
-                    src={item.product?.images?.[0]?.url || 'https://images.unsplash.com/photo-1464226184884-fa280b87c399?auto=format&fit=crop&w=800&q=80'}
-                    alt={item.product?.name}
-                    className="h-28 w-28 shrink-0 rounded-2xl object-cover"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="font-semibold leading-snug text-ink">{item.product?.name}</p>
-                        <div className="mt-1 flex flex-wrap items-center gap-2 text-sm">
-                          <span className="font-semibold text-forest">{formatPrice(item.price)}</span>
-                          {item.product?.price != null && item.price < item.product.price ? (
-                            <span className="text-xs text-slate-400 line-through">{formatPrice(item.product.price)}</span>
-                          ) : null}
-                          <span className="text-slate-500">/ {UNIT_LABELS[item.product?.unit] || item.product?.unit}</span>
+          /* ── Checkout layout: main left + sticky summary right ── */
+          <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_400px]">
+
+            {/* ── Left column ── */}
+            <div className="space-y-8">
+
+              {/* Step 1: Products */}
+              <div>
+                <SectionStep
+                  number="1"
+                  label="Məhsullar"
+                  action={
+                    <button
+                      type="button"
+                      className="btn-secondary text-xs"
+                      onClick={() => clearMutation.mutate()}
+                      disabled={clearMutation.isPending}
+                    >
+                      Səbəti boşalt
+                    </button>
+                  }
+                />
+                <div className="mt-4 space-y-3">
+                  {items.map((item) => (
+                    <div key={item._id} className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                      <div className="flex gap-4">
+                        <img
+                          src={item.product?.images?.[0]?.url || 'https://images.unsplash.com/photo-1464226184884-fa280b87c399?auto=format&fit=crop&w=800&q=80'}
+                          alt={item.product?.name}
+                          className="h-24 w-24 shrink-0 rounded-2xl object-cover"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <p className="font-semibold leading-snug text-slate-900">{item.product?.name}</p>
+                              <div className="mt-0.5 flex flex-wrap items-center gap-2 text-sm">
+                                <span className="font-medium text-forest">{formatPrice(item.price)}</span>
+                                {item.product?.price != null && item.price < item.product.price ? (
+                                  <span className="text-xs text-slate-400 line-through">{formatPrice(item.product.price)}</span>
+                                ) : null}
+                                <span className="text-slate-400">/ {UNIT_LABELS[item.product?.unit] || item.product?.unit}</span>
+                              </div>
+                            </div>
+                            <div className="flex shrink-0 items-center gap-0.5">
+                              <button
+                                type="button"
+                                onClick={() => handleWishlistToggle(item)}
+                                className="rounded-full p-1.5 transition hover:bg-rose-50 disabled:opacity-40"
+                                disabled={addToWishlistMutation.isPending || removeFromWishlistMutation.isPending}
+                                title={isInWishlist(item.product?._id) ? 'Wishlist-dən çıxar' : 'Wishlist-ə əlavə et'}
+                              >
+                                <Heart className={`h-4 w-4 transition ${isInWishlist(item.product?._id) ? 'fill-rose-500 text-rose-500' : 'text-slate-400'}`} />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setConfirmPending({ itemId: item._id, productName: item.product?.name || 'məhsul' })}
+                                className="rounded-full p-1.5 text-slate-400 transition hover:bg-red-50 hover:text-red-500"
+                                title="Məhsulu sil"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </div>
+                          </div>
+                          <div className="mt-3 flex items-center justify-between gap-4">
+                            <QuantityInput
+                              value={item.quantity}
+                              min={item.product?.minOrderQuantity || 1}
+                              max={item.product?.stockQuantity || 9999}
+                              onChange={(qty) => updateMutation.mutate({ itemId: item._id, quantity: qty })}
+                            />
+                            <span className="text-sm font-bold text-slate-900">
+                              {formatPrice((item.price || item.product?.price || 0) * item.quantity)}
+                            </span>
+                          </div>
                         </div>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => handleWishlistToggle(item)}
-                          className="rounded-full p-2 transition hover:bg-rose-50 disabled:opacity-40"
-                          title={isInWishlist(item.product?._id) ? 'Wishlist-dən çıxar' : 'Wishlist-ə əlavə et'}
-                          disabled={addToWishlistMutation.isPending || removeFromWishlistMutation.isPending}
-                        >
-                          <Heart className={`h-4 w-4 transition ${isInWishlist(item.product?._id) ? 'fill-rose-500 text-rose-500' : 'text-slate-400'}`} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setConfirmPending({ itemId: item._id, productName: item.product?.name || 'məhsul' })}
-                          className="rounded-full p-2 text-slate-400 transition hover:bg-red-50 hover:text-red-500"
-                          title="Məhsulu sil"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
                     </div>
-                    <div className="mt-3 flex items-center justify-between gap-4">
-                      {/* Quantity: direct typed input + buttons, validates on blur/Enter */}
-                      <QuantityInput
-                        value={item.quantity}
-                        min={item.product?.minOrderQuantity || 1}
-                        max={item.product?.stockQuantity || 9999}
-                        disabled={updateMutation.isPending}
-                        onChange={(qty) => updateMutation.mutate({ itemId: item._id, quantity: qty })}
-                      />
-                      <div className="text-sm font-semibold text-ink">
-                        {formatPrice((item.price || item.product?.price || 0) * item.quantity)}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Order summary + checkout form */}
-            <div className="panel h-fit space-y-4">
-              <div className="text-sm font-semibold text-slate-500">Sifariş xülasəsi</div>
-              <div className="rounded-3xl bg-slate-50 p-5 space-y-3">
-                <div className="flex items-center justify-between text-sm">
-                  <span>Məhsullar</span>
-                  <span className="font-semibold text-ink">{formatPrice(subtotal)}</span>
-                </div>
-                <div className="flex items-center justify-between text-sm">
-                  <span>Çatdırılma{deliveryEstimate?.distanceKm ? ` (~${deliveryEstimate.distanceKm} km)` : ''}</span>
-                  <span className="font-semibold text-forest">
-                    {estimateMutation.isPending ? 'hesablanır…'
-                      : deliveryEstimate?.error ? 'Hesablana bilmədi'
-                      : deliveryFee != null ? formatPrice(deliveryFee)
-                      : 'Region və ünvan daxil edin'}
-                  </span>
-                </div>
-                {deliveryEstimate?.error ? (
-                  <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{deliveryEstimate.error}</div>
-                ) : null}
-                <div className="flex items-center justify-between border-t border-slate-200 pt-3 text-sm font-semibold">
-                  <span>Cəmi</span>
-                  <span className="text-forest">{formatPrice(total)}</span>
+                  ))}
                 </div>
               </div>
 
-              {checkoutOpen ? (
-                <form onSubmit={submitOrder} className="space-y-3" noValidate>
-                  <div className="text-sm font-semibold text-slate-700">Çatdırılma məlumatları</div>
-                  {checkoutError ? (
-                    <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{checkoutError}</div>
+              {/* Step 2: Delivery form */}
+              <div>
+                <SectionStep number="2" label="Çatdırılma məlumatları" />
+                <form id="checkout-form" onSubmit={submitOrder} noValidate>
+                  <div className="mt-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                    {prefillApplied ? (
+                      <div className="mb-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-xs text-emerald-700">
+                        Məlumatlar profilinizdən avtomatik dolduruldu. İstəsəniz dəyişə bilərsiniz.
+                      </div>
+                    ) : null}
+
+                    {checkoutError ? (
+                      <div className="mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                        {checkoutError}
+                      </div>
+                    ) : null}
+
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <FormField label="Ad Soyad" error={fe.recipientName} required>
+                        <input
+                          className={`input-shell ${fe.recipientName ? 'input-error' : ''}`}
+                          placeholder="Ad Soyad"
+                          disabled={isSubmitting}
+                          autoComplete="name"
+                          {...register('recipientName')}
+                        />
+                      </FormField>
+
+                      <FormField label="Telefon" error={fe.phone} required>
+                        <Controller
+                          name="phone"
+                          control={control}
+                          render={({ field }) => (
+                            <PhoneInput
+                              value={field.value}
+                              onChange={field.onChange}
+                              onBlur={field.onBlur}
+                              name={field.name}
+                              hasError={!!fe.phone}
+                            />
+                          )}
+                        />
+                      </FormField>
+
+                      <div className="md:col-span-2">
+                        <FormField label="Region" error={fe.region} required>
+                          <select
+                            className={`input-shell ${fe.region ? 'input-error' : ''}`}
+                            disabled={isSubmitting}
+                            {...register('region', { onChange: handleRegionChange })}
+                          >
+                            <option value="">Region seçin</option>
+                            {regions.map((r) => <option key={r._id} value={r._id}>{r.name}</option>)}
+                          </select>
+                        </FormField>
+                      </div>
+
+                      <div className="md:col-span-2">
+                        <div className="mb-1.5 text-sm font-medium text-slate-700">Xəritədə ünvan seç</div>
+                        <LocationPicker
+                          value={pickedLocation}
+                          onChange={handlePickLocation}
+                          onAvailabilityChange={setMapAvailable}
+                          placeholder="Çatdırılma ünvanını xəritədə tap..."
+                        />
+                      </div>
+
+                      <div className="md:col-span-2">
+                        <FormField label="Küçə / dəqiq ünvan" error={fe.street} required>
+                          <input
+                            className={`input-shell ${fe.street ? 'input-error' : ''}`}
+                            placeholder="Küçə, ev nömrəsi, mənzil"
+                            disabled={isSubmitting}
+                            autoComplete="street-address"
+                            {...register('street', { onBlur: handleStreetBlur })}
+                          />
+                        </FormField>
+                      </div>
+
+                      <div className="md:col-span-2">
+                        <FormField label="Qeyd" error={fe.notes}>
+                          <textarea
+                            className="input-shell"
+                            placeholder="Kuryerə qeyd (istəyə bağlı)"
+                            disabled={isSubmitting}
+                            rows={2}
+                            {...register('notes')}
+                          />
+                        </FormField>
+                      </div>
+                    </div>
+                  </div>
+                </form>
+              </div>
+            </div>
+
+            {/* ── Right column: sticky order summary ── */}
+            <div>
+              <SectionStep number="3" label="Sifariş xülasəsi" />
+              <aside className="mt-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm lg:sticky lg:top-24">
+                {/* Line items */}
+                <div className="space-y-3 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-600">Məhsullar ({items.length} növ)</span>
+                    <span className="font-semibold text-slate-900">{formatPrice(subtotal)}</span>
+                  </div>
+
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="text-slate-600">
+                      Çatdırılma
+                      {deliveryEstimate?.distanceKm ? (
+                        <span className="ml-1 text-xs text-slate-400">(~{deliveryEstimate.distanceKm} km)</span>
+                      ) : null}
+                    </span>
+                    <span className={`shrink-0 font-semibold ${
+                      estimateMutation.isPending ? 'text-slate-400 animate-pulse'
+                      : deliveryEstimate?.error ? 'text-red-500'
+                      : deliveryFee != null ? 'text-forest'
+                      : 'text-slate-400'
+                    }`}>
+                      {estimateMutation.isPending
+                        ? 'Hesablanır…'
+                        : deliveryEstimate?.error
+                        ? 'Hesablana bilmədi'
+                        : deliveryFee != null
+                        ? formatPrice(deliveryFee)
+                        : '—'}
+                    </span>
+                  </div>
+
+                  {deliveryEstimate?.error ? (
+                    <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+                      {deliveryEstimate.error}
+                    </div>
                   ) : null}
 
-                  <FormField label="Ad Soyad" error={fe.recipientName} required>
-                    <input
-                      className={`input-shell ${fe.recipientName ? 'input-error' : ''}`}
-                      placeholder="Ad Soyad"
-                      disabled={isSubmitting}
-                      autoComplete="name"
-                      {...register('recipientName')}
-                    />
-                  </FormField>
+                  {needsDeliveryHint ? (
+                    <p className="text-xs text-slate-400">
+                      Çatdırılma qiyməti üçün region və ünvan daxil edin
+                    </p>
+                  ) : null}
+                </div>
 
-                  <FormField label="Telefon" error={fe.phone} required>
-                    <Controller
-                      name="phone"
-                      control={control}
-                      render={({ field }) => (
-                        <PhoneInput
-                          value={field.value}
-                          onChange={field.onChange}
-                          onBlur={field.onBlur}
-                          name={field.name}
-                          hasError={!!fe.phone}
-                        />
-                      )}
-                    />
-                  </FormField>
+                {/* Total */}
+                <div className="mt-4 flex items-center justify-between border-t border-slate-200 pt-4">
+                  <span className="text-base font-bold text-slate-900">Cəmi</span>
+                  <span className="text-xl font-bold text-emerald-700">{formatPrice(total)}</span>
+                </div>
 
-                  <FormField label="Region" error={fe.region} required>
-                    <select
-                      className={`input-shell ${fe.region ? 'input-error' : ''}`}
-                      disabled={isSubmitting}
-                      {...register('region', { onChange: handleRegionChange })}
-                    >
-                      <option value="">Region seçin</option>
-                      {regions.map((r) => <option key={r._id} value={r._id}>{r.name}</option>)}
-                    </select>
-                  </FormField>
+                {/* Payment method */}
+                <div className="mt-4 flex items-center gap-2 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5 text-xs text-slate-500">
+                  <CreditCard className="h-4 w-4 shrink-0 text-slate-400" />
+                  <span>Kartla ödəniş (Visa / Mastercard)</span>
+                </div>
 
-                  <LocationPicker
-                    value={pickedLocation}
-                    onChange={handlePickLocation}
-                    onAvailabilityChange={setMapAvailable}
-                    placeholder="Çatdırılma ünvanını xəritədə tap..."
-                  />
-
-                  <FormField label="Küçə / dəqiq ünvan" error={fe.street} required>
-                    <input
-                      className={`input-shell ${fe.street ? 'input-error' : ''}`}
-                      placeholder="Küçə / dəqiq ünvan"
-                      disabled={isSubmitting}
-                      autoComplete="street-address"
-                      {...register('street', { onBlur: handleStreetBlur })}
-                    />
-                  </FormField>
-
-                  <FormField label="Qeyd" error={fe.notes}>
-                    <textarea
-                      className="input-shell"
-                      placeholder="Qeyd (istəyə bağlı)"
-                      disabled={isSubmitting}
-                      rows={2}
-                      {...register('notes')}
-                    />
-                  </FormField>
-
-                  <button type="submit" className="btn-primary w-full" disabled={isSubmitting}>
-                    {isSubmitting ? 'Ödənişə keçilir...' : 'Sifariş ver'}
-                  </button>
-                  <button type="button" className="btn-secondary w-full" onClick={() => setCheckoutOpen(false)} disabled={isSubmitting}>
-                    Ləğv et
-                  </button>
-                </form>
-              ) : (
-                <button type="button" className="btn-primary w-full" onClick={() => { setCheckoutOpen(true); setCheckoutError(''); }}>
-                  Sifariş ver
+                {/* Submit button — submits the form in the left column via form= */}
+                <button
+                  type="submit"
+                  form="checkout-form"
+                  className="mt-5 h-12 w-full rounded-full bg-emerald-700 text-sm font-bold text-white transition hover:bg-emerald-800 disabled:opacity-60"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? 'Ödənişə keçilir...' : 'Sifariş ver →'}
                 </button>
-              )}
+              </aside>
             </div>
           </div>
         )}
