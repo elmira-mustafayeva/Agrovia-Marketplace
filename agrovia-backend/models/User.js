@@ -11,14 +11,16 @@ const userSchema = new mongoose.Schema(
       required: [true, 'Ad tələb olunur'],
       trim: true,
       minlength: [3, 'Ad minimum 3 simvol olmalıdır'],
-      maxlength: [50, 'Ad maksimum 50 simvol ola bilər']
+      maxlength: [50, 'Ad maksimum 50 simvol ola bilər'],
+      match: [/^[a-zA-ZəƏğĞıİöÖüÜşŞçÇ\s'-]+$/, 'Ad yalnız hərflərdən ibarət olmalıdır']
     },
     lastName: {
       type: String,
       required: [true, 'Soyad tələb olunur'],
       trim: true,
       minlength: [3, 'Soyad minimum 3 simvol olmalıdır'],
-      maxlength: [50, 'Soyad maksimum 50 simvol ola bilər']
+      maxlength: [50, 'Soyad maksimum 50 simvol ola bilər'],
+      match: [/^[a-zA-ZəƏğĞıİöÖüÜşŞçÇ\s'-]+$/, 'Soyad yalnız hərflərdən ibarət olmalıdır']
     },
     email: {
       type: String,
@@ -31,7 +33,11 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: [true, 'Telefon nömrəsi tələb olunur'],
       unique: true,
-      trim: true
+      trim: true,
+      validate: {
+        validator: (v) => /^\+994(10|50|51|55|60|70|77|99)\d{7}$/.test(v),
+        message: 'Düzgün AZ mobil nömrəsi daxil edin. Məsələn: +994501234567'
+      }
     },
     password: {
       type: String,
@@ -74,6 +80,11 @@ const userSchema = new mongoose.Schema(
       businessName: String,
       businessDescription: String,
       taxNumber: String,
+      // Exact pickup/origin point for delivery distance (primary seller origin).
+      pickupLocation: {
+        lat: Number,
+        lng: Number
+      },
       saleType: {
         type: String,
         enum: ['retail', 'wholesale', 'both'],
@@ -116,6 +127,11 @@ const userSchema = new mongoose.Schema(
         type: Number,
         default: 500 // km
       },
+      // Kuryerin xidmət göstərdiyi regionlar (qeydiyyatda seçilir)
+      regions: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Region'
+      }],
       isAvailable: {
         type: Boolean,
         default: true

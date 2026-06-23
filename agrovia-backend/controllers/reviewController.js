@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Review = require('../models/Review');
 const Order = require('../models/Order');
 const Product = require('../models/Product');
@@ -9,18 +10,20 @@ const createNotification = require('../utils/createNotification');
 // @access  Private (Buyer)
 exports.addReview = async (req, res) => {
   try {
-    const { orderId, productId, productRating, productReview, courierRating, courierReview } = req.body;
+    // Courier rating is a separate, order-level concept (POST /api/orders/:id/courier-review).
+    const { orderId, productId, productRating, productReview } = req.body;
 
     const order = await Order.findOne({
       _id: orderId,
       buyer: req.user.id,
-      status: 'delivered'
+      status: 'delivered',
+      'payment.status': 'paid'
     });
 
     if (!order) {
       return res.status(400).json({
         success: false,
-        message: 'Sifariş tapılmadı və ya çatdırılmayıb'
+        message: 'Rəy yalnız çatdırılmış və ödənişi tamamlanmış sifariş üçün yazıla bilər'
       });
     }
 
@@ -32,7 +35,9 @@ exports.addReview = async (req, res) => {
       });
     }
 
-    const existingReview = await Review.findOne({ user: req.user.id, product: productId, order: orderId });
+    // One review per buyer per product (MVP rule). Drop `order` from the guard so a
+    // buyer cannot create multiple reviews for the same product from different orders.
+    const existingReview = await Review.findOne({ user: req.user.id, product: productId });
     if (existingReview) {
       return res.status(400).json({
         success: false,
@@ -40,58 +45,63 @@ exports.addReview = async (req, res) => {
       });
     }
 
+    const trimmedReview = (productReview || '').trim();
+    if (!trimmedReview) {
+      return res.status(400).json({ success: false, message: 'Rəy mətni boş ola bilməz' });
+    }
+
     const review = await Review.create({
       user: req.user.id,
       product: productId,
       order: orderId,
       productRating,
-      productReview,
-      courierRating,
-      courierReview,
-      courier: order.courier
+      productReview: trimmedReview,
     });
 
-    // Update product rating
-    const productReviews = await Review.find({ product: productId, productRating: { $exists: true } });
-    const avgProductRating = productReviews.reduce((sum, r) => sum + r.productRating, 0) / productReviews.length;
-    
-    await Product.findByIdAndUpdate(productId, {
-      rating: Math.round(avgProductRating * 10) / 10,
-      totalReviews: productReviews.length
-    });
+    // Rating aggregation is best-effort: the review is the only critical write.
+    // It MUST NOT make the request look failed after the review is inserted, so the
+    // whole block is wrapped — any failure is logged but still returns 201.
+    try {
+      // Update product rating. (No `$exists` filter: productRating is required, and
+      // sanitizeFilter would neutralize the operator → empty result → NaN → CastError.)
+      const productReviews = await Review.find({ product: productId });
+      const avgProductRating = productReviews.length
+        ? productReviews.reduce((sum, r) => sum + r.productRating, 0) / productReviews.length
+        : 0;
 
-    // Update seller rating
-    const product = await Product.findById(productId);
-    const sellerReviews = await Review.find({ product: { $in: await Product.find({ seller: product.seller }).select('_id') } });
-    const avgSellerRating = sellerReviews.reduce((sum, r) => sum + r.productRating, 0) / sellerReviews.length;
-    
-    await User.findByIdAndUpdate(product.seller, {
-      'sellerInfo.rating': Math.round(avgSellerRating * 10) / 10
-    });
-
-    // Update courier rating if provided
-    if (courierRating && order.courier) {
-      const courierReviews = await Review.find({ courier: order.courier, courierRating: { $exists: true } });
-      const avgCourierRating = courierReviews.reduce((sum, r) => sum + r.courierRating, 0) / courierReviews.length;
-      
-      await User.findByIdAndUpdate(order.courier, {
-        'courierInfo.rating': Math.round(avgCourierRating * 10) / 10
+      await Product.findByIdAndUpdate(productId, {
+        rating: Math.round(avgProductRating * 10) / 10,
+        totalReviews: productReviews.length
       });
-    }
 
-    // Notify the seller about the new review
-    const preview = productReview.length > 80
-      ? productReview.substring(0, 80) + '...'
-      : productReview;
-    await createNotification({
-      recipient: product.seller,
-      sender: req.user.id,
-      type: 'review',
-      title: 'Məhsulunuza yeni rəy əlavə edildi',
-      message: `${productRating} ulduz reytinq: "${preview}"`,
-      relatedProduct: product._id,
-      relatedReview: review._id
-    });
+      // Update seller rating. trusted() is required — sanitizeFilter neutralizes a raw $in.
+      const product = await Product.findById(productId);
+      const sellerProductIds = (await Product.find({ seller: product.seller }).select('_id')).map((p) => p._id);
+      const sellerReviews = await Review.find({ product: mongoose.trusted({ $in: sellerProductIds }) });
+      const avgSellerRating = sellerReviews.length
+        ? sellerReviews.reduce((sum, r) => sum + r.productRating, 0) / sellerReviews.length
+        : 0;
+
+      await User.findByIdAndUpdate(product.seller, {
+        'sellerInfo.rating': Math.round(avgSellerRating * 10) / 10
+      });
+
+      // Notify the seller about the new review
+      const preview = trimmedReview.length > 80
+        ? trimmedReview.substring(0, 80) + '...'
+        : trimmedReview;
+      await createNotification({
+        recipient: product.seller,
+        sender: req.user.id,
+        type: 'review',
+        title: 'Məhsulunuza yeni rəy əlavə edildi',
+        message: `${productRating} ulduz reytinq: "${preview}"`,
+        relatedProduct: product._id,
+        relatedReview: review._id
+      });
+    } catch (aggErr) {
+      console.error('Review aggregation/notification failed (review still saved):', aggErr.message);
+    }
 
     res.status(201).json({
       success: true,

@@ -53,9 +53,7 @@ export default function MainLayout({ children }) {
               Fermer, satıcı, alıcı və kuryer üçün eyni platformada dinamik məhsul axını, sifariş idarəsi və çatdırılma hesablama axını.
             </p>
             <div className="mt-6 flex flex-wrap gap-3 text-sm text-white/75">
-              <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2"><ShieldCheck className="h-4 w-4" />Auth guarded</span>
-              <span className="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2"><ChevronRight className="h-4 w-4" />Dynamic API data</span>
-            </div>
+             </div>
           </div>
           <div>
             <div className="text-sm font-semibold uppercase tracking-[0.18em] text-white/50">Əlaqə</div>
@@ -75,14 +73,6 @@ export default function MainLayout({ children }) {
           </div>
         </div>
       </footer>
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-        className="pointer-events-none fixed bottom-4 left-1/2 z-40 -translate-x-1/2 rounded-full border border-white/60 bg-white/80 px-4 py-2 text-xs font-medium text-slate-600 shadow-soft backdrop-blur"
-      >
-        React + Tailwind + Query + Redux + API-driven UI
-      </motion.div>
     </div>
   );
 }

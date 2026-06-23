@@ -1,21 +1,20 @@
 const validator = require('validator');
+const mongoose = require('mongoose');
+const { normalizeAzPhone, isValidAzMobile } = require('../utils/phoneValidator');
 
-// Helper to collect errors
-const validationResult = (req) => {
-  return req.validationErrors || [];
-};
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
-// Helper to check if validation passed
-const isEmpty = (value) => {
-  return (
-    value === undefined ||
-    value === null ||
-    (typeof value === 'object' && Object.keys(value).length === 0) ||
-    (typeof value === 'string' && value.trim().length === 0)
-  );
-};
+const isEmpty = (value) =>
+  value === undefined ||
+  value === null ||
+  (typeof value === 'object' && Object.keys(value).length === 0) ||
+  (typeof value === 'string' && value.trim().length === 0);
 
-// Register validation
+// Azerbaijani + Latin letters, space, hyphen, apostrophe only
+const AZ_NAME_RE = /^[a-zA-ZəƏğĞıİöÖüÜşŞçÇ\s'-]+$/;
+
+// ── Register ──────────────────────────────────────────────────────────────────
+
 exports.validateRegister = (req, res, next) => {
   const errors = [];
   const body = req.body || {};
@@ -23,19 +22,32 @@ exports.validateRegister = (req, res, next) => {
 
   if (isEmpty(firstName) || firstName.length < 3) {
     errors.push('Ad minimum 3 simvol olmalıdır');
+  } else if (!AZ_NAME_RE.test(firstName)) {
+    errors.push('Ad yalnız hərflərdən ibarət olmalıdır');
   }
+
   if (isEmpty(lastName) || lastName.length < 3) {
     errors.push('Soyad minimum 3 simvol olmalıdır');
+  } else if (!AZ_NAME_RE.test(lastName)) {
+    errors.push('Soyad yalnız hərflərdən ibarət olmalıdır');
   }
+
   if (isEmpty(email) || !validator.isEmail(email)) {
     errors.push('Düzgün email daxil edin');
   }
-  if (isEmpty(phone)) {
-    errors.push('Telefon nömrəsi tələb olunur');
+
+  // Phone: normalize then validate AZ mobile format
+  const normalizedPhone = normalizeAzPhone(phone);
+  if (!isValidAzMobile(normalizedPhone)) {
+    errors.push('Telefon nömrəsi düzgün deyil. Məsələn: +994501234567');
+  } else {
+    req.body.phone = normalizedPhone; // store normalized form for the controller
   }
+
   if (isEmpty(password) || password.length < 8) {
     errors.push('Şifrə minimum 8 simvol olmalıdır');
   }
+
   if (!['buyer', 'seller', 'courier'].includes(role)) {
     errors.push('Admin hesabları ictimai qeydiyyatdan yaradıla bilməz');
   }
@@ -46,17 +58,14 @@ exports.validateRegister = (req, res, next) => {
   }
 
   if (errors.length > 0) {
-    return res.status(400).json({
-      success: false,
-      message: 'Validasiya xətası',
-      errors
-    });
+    return res.status(400).json({ success: false, message: 'Validasiya xətası', errors });
   }
 
   next();
 };
 
-// Login validation
+// ── Login ─────────────────────────────────────────────────────────────────────
+
 exports.validateLogin = (req, res, next) => {
   const errors = [];
   const body = req.body || {};
@@ -70,40 +79,52 @@ exports.validateLogin = (req, res, next) => {
   }
 
   if (errors.length > 0) {
-    return res.status(400).json({
-      success: false,
-      message: 'Validasiya xətası',
-      errors
-    });
+    return res.status(400).json({ success: false, message: 'Validasiya xətası', errors });
   }
 
   next();
 };
 
-// Product validation
+// ── Product ───────────────────────────────────────────────────────────────────
+
 exports.validateProduct = (req, res, next) => {
   const errors = [];
   const body = req.body || {};
   const { name, description, price, unit, minOrderQuantity, stockQuantity, category, region } = body;
 
-  if (isEmpty(name) || name.length < 2) {
+  if (isEmpty(name) || String(name).trim().length < 2) {
     errors.push('Məhsul adı minimum 2 simvol olmalıdır');
   }
   if (isEmpty(description)) {
     errors.push('Təsvir tələb olunur');
   }
-  if (isEmpty(price) || !validator.isFloat(price.toString(), { min: 0 })) {
-    errors.push('Düzgün qiymət daxil edin');
+
+  // Price: positive number, decimals allowed, sensible max cap
+  const priceNum = parseFloat(price);
+  if (price === undefined || price === null || price === '' || isNaN(priceNum) || priceNum <= 0) {
+    errors.push('Qiymət sıfırdan böyük olmalıdır');
+  } else if (priceNum > 9_999_999.99) {
+    errors.push('Qiymət həddindən yüksəkdir');
   }
+
   if (!['kg', 'gram', 'ton', 'piece', 'liter', 'bottle', 'box', 'bag'].includes(unit)) {
     errors.push('Düzgün vahid seçin');
   }
-  if (isEmpty(minOrderQuantity) || minOrderQuantity < 1) {
-    errors.push('Minimum sifariş miqdarı minimum 1 olmalıdır');
+
+  // Min order quantity: positive number, decimals allowed (e.g. 0.5 kg)
+  const minQtyNum = parseFloat(minOrderQuantity);
+  if (minOrderQuantity === undefined || minOrderQuantity === null || minOrderQuantity === '' || isNaN(minQtyNum) || minQtyNum <= 0) {
+    errors.push('Minimum sifariş miqdarı sıfırdan böyük olmalıdır');
   }
-  if (isEmpty(stockQuantity) || stockQuantity < 0) {
-    errors.push('Stok miqdarı düzgün deyil');
+
+  // Stock: non-negative number, decimals allowed
+  const stockNum = parseFloat(stockQuantity);
+  if (stockQuantity === undefined || stockQuantity === null || stockQuantity === '' || isNaN(stockNum) || stockNum < 0) {
+    errors.push('Stok miqdarı mənfi ola bilməz');
+  } else if (stockNum > 9_999_999) {
+    errors.push('Stok miqdarı həddindən yüksəkdir');
   }
+
   if (isEmpty(category)) {
     errors.push('Kateqoriya seçin');
   }
@@ -112,41 +133,56 @@ exports.validateProduct = (req, res, next) => {
   }
 
   if (errors.length > 0) {
-    return res.status(400).json({
-      success: false,
-      message: 'Validasiya xətası',
-      errors
-    });
+    return res.status(400).json({ success: false, message: 'Validasiya xətası', errors });
   }
 
   next();
 };
 
-// Order validation
+// ── Order ─────────────────────────────────────────────────────────────────────
+
 exports.validateOrder = (req, res, next) => {
   const errors = [];
   const body = req.body || {};
   const { deliveryAddress, paymentMethod } = body;
 
-  if (isEmpty(deliveryAddress)) {
+  if (isEmpty(deliveryAddress) || typeof deliveryAddress !== 'object') {
     errors.push('Çatdırılma ünvanı tələb olunur');
+  } else {
+    if (
+      deliveryAddress.region !== undefined &&
+      deliveryAddress.region !== null &&
+      deliveryAddress.region !== ''
+    ) {
+      if (!mongoose.Types.ObjectId.isValid(deliveryAddress.region)) {
+        errors.push('Çatdırılma ünvanı üçün düzgün region seçin');
+      }
+    }
+
+    // Street length guard
+    const street = deliveryAddress.street;
+    if (typeof street === 'string' && street.trim().length > 0) {
+      if (street.trim().length < 4) {
+        errors.push('Ünvan ən az 4 simvol olmalıdır');
+      } else if (street.length > 100) {
+        errors.push('Ünvan 100 simvoldan çox ola bilməz');
+      }
+    }
   }
+
   if (!['cash', 'card', 'online'].includes(paymentMethod)) {
     errors.push('Düzgün ödəniş üsulu seçin');
   }
 
   if (errors.length > 0) {
-    return res.status(400).json({
-      success: false,
-      message: 'Validasiya xətası',
-      errors
-    });
+    return res.status(400).json({ success: false, message: 'Validasiya xətası', errors });
   }
 
   next();
 };
 
-// Review validation
+// ── Review ────────────────────────────────────────────────────────────────────
+
 exports.validateReview = (req, res, next) => {
   const errors = [];
   const body = req.body || {};
@@ -155,16 +191,17 @@ exports.validateReview = (req, res, next) => {
   if (!productRating || productRating < 1 || productRating > 5) {
     errors.push('Reytinq 1-5 arası olmalıdır');
   }
-  if (isEmpty(productReview) || productReview.length < 5) {
+
+  // Trim first to block whitespace-only reviews
+  const trimmedReview = (productReview || '').trim();
+  if (!trimmedReview) {
+    errors.push('Rəy mətni boş ola bilməz');
+  } else if (trimmedReview.length < 5) {
     errors.push('Rəy minimum 5 simvol olmalıdır');
   }
 
   if (errors.length > 0) {
-    return res.status(400).json({
-      success: false,
-      message: 'Validasiya xətası',
-      errors
-    });
+    return res.status(400).json({ success: false, message: 'Validasiya xətası', errors });
   }
 
   next();

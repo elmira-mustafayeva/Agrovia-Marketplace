@@ -1,6 +1,7 @@
 const crypto = require('crypto');
 const mongoose = require('mongoose');
 const User = require('../models/User');
+const { normalizeAzPhone, isValidAzMobile } = require('../utils/phoneValidator');
 const asyncHandler = require('../utils/asyncHandler');
 const ApiError = require('../utils/ApiError');
 const sendEmail = require('../utils/sendEmail');
@@ -406,6 +407,17 @@ exports.updateProfile = asyncHandler(async (req, res) => {
   allowedUpdates.forEach(field => {
     if (req.body[field] !== undefined) updates[field] = req.body[field];
   });
+
+  if (updates.firstName) updates.firstName = updates.firstName.trim();
+  if (updates.lastName)  updates.lastName  = updates.lastName.trim();
+
+  if (updates.phone !== undefined) {
+    const normalized = normalizeAzPhone(updates.phone);
+    if (!isValidAzMobile(normalized)) {
+      throw new ApiError(400, 'Telefon nömrəsi düzgün deyil. Məsələn: +994501234567');
+    }
+    updates.phone = normalized;
+  }
 
   const user = await User.findByIdAndUpdate(
     req.user.id,

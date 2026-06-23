@@ -1,6 +1,8 @@
+const mongoose = require('mongoose');
 const User = require('../models/User');
 const Order = require('../models/Order');
 const createNotification = require('../utils/createNotification');
+const deductOrderStock = require('../utils/deductOrderStock');
 
 // @desc    Get courier dashboard
 // @route   GET /api/courier/dashboard
@@ -15,6 +17,19 @@ exports.getDashboard = async (req, res) => {
       status: 'out_for_delivery'
     });
 
+    // Earnings from the order ledger (delivered orders only)
+    const deliveredOrders = await Order.find({ courier: req.user.id, status: 'delivered' }).select('payout');
+    let totalEarnings = 0;
+    let availablePayout = 0;
+    let paidPayout = 0;
+    for (const o of deliveredOrders) {
+      const earning = o.payout?.courierEarning || 0;
+      totalEarnings += earning;
+      if (o.payout?.courierPayoutStatus === 'available') availablePayout += earning;
+      else if (o.payout?.courierPayoutStatus === 'paid') paidPayout += earning;
+    }
+    const round2 = (n) => Math.round(n * 100) / 100;
+
     res.status(200).json({
       success: true,
       stats: {
@@ -22,7 +37,11 @@ exports.getDashboard = async (req, res) => {
         isAvailable: user.courierInfo?.isAvailable,
         rating: user.courierInfo?.rating,
         totalDeliveries,
-        pendingDeliveries
+        pendingDeliveries,
+        completedDeliveries: deliveredOrders.length,
+        totalEarnings: round2(totalEarnings),
+        availablePayout: round2(availablePayout),
+        paidPayout: round2(paidPayout)
       }
     });
   } catch (error) {
@@ -40,15 +59,28 @@ exports.getDashboard = async (req, res) => {
 exports.getAvailableOrders = async (req, res) => {
   try {
     const user = await User.findById(req.user.id);
-    const courierRegion = user.address?.region;
+    const regions = user.courierInfo?.regions || [];
+
+    // Region seçilməyibsə — boş siyahı + frontend üçün aydın səbəb
+    if (regions.length === 0) {
+      return res.status(200).json({
+        success: true,
+        count: 0,
+        orders: [],
+        reason: 'NO_REGIONS',
+        message: 'Xidmət regionları seçilməyib. Sifarişləri görmək üçün xidmət regionlarınızı seçin.'
+      });
+    }
 
     const orders = await Order.find({
-      status: { $in: ['preparing', 'confirmed'] },
+      status: 'ready',
       courier: null,
-      ...(courierRegion && { 'deliveryAddress.region': courierRegion })
+      // sanitizeFilter (config/database.js) wraps raw operators in $eq — trusted() bypasses it
+      'deliveryAddress.region': mongoose.trusted({ $in: regions })
     })
       .populate('buyer', 'firstName lastName phone')
       .populate('items.product', 'name')
+      .populate('deliveryAddress.region', 'name')
       .sort({ createdAt: 1 });
 
     res.status(200).json({
@@ -79,8 +111,24 @@ exports.acceptOrder = async (req, res) => {
       });
     }
 
+    const regions = user.courierInfo?.regions || [];
+    if (regions.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Xidmət regionları seçilməyib. Sifariş qəbul etmək üçün xidmət regionlarınızı seçin.'
+      });
+    }
+
+    // Region uyğunluğu atomik şəkildə yoxlanılır — kuryer öz regionundan kənar
+    // və ya artıq başqasına təyin olunmuş sifarişi qəbul edə bilməz
     const order = await Order.findOneAndUpdate(
-      { _id: req.params.id, courier: null, status: { $in: ['preparing', 'confirmed'] } },
+      {
+        _id: req.params.id,
+        courier: null,
+        status: 'ready',
+        // sanitizeFilter (config/database.js) wraps raw operators in $eq — trusted() bypasses it
+        'deliveryAddress.region': mongoose.trusted({ $in: regions })
+      },
       {
         courier: req.user.id,
         status: 'out_for_delivery',
@@ -157,6 +205,7 @@ exports.getMyDeliveries = async (req, res) => {
     const orders = await Order.find(filter)
       .populate('buyer', 'firstName lastName phone')
       .populate('items.product', 'name')
+      .populate('deliveryAddress.region', 'name')
       .sort({ createdAt: -1 });
 
     res.status(200).json({
@@ -213,6 +262,19 @@ exports.updateDeliveryStatus = async (req, res) => {
       order.deliveredAt = new Date();
       if (order.payment.method === 'cash') {
         order.payment.status = 'paid';
+        // Cash collected on delivery → deduct stock now (idempotent, best-effort:
+        // never block the delivery confirmation if stock math fails on this unused path).
+        try {
+          await deductOrderStock(order._id);
+        } catch (stockErr) {
+          console.error('Cash delivery stock deduction failed:', stockErr.message);
+        }
+      }
+
+      // Earnings become payable once delivered.
+      if (order.payout) {
+        if (order.payout.sellerPayoutStatus === 'pending') order.payout.sellerPayoutStatus = 'available';
+        if (order.payout.courierPayoutStatus === 'pending') order.payout.courierPayoutStatus = 'available';
       }
 
       // Make courier available again
@@ -249,13 +311,17 @@ exports.updateDeliveryStatus = async (req, res) => {
 // @access  Private (Courier)
 exports.toggleAvailability = async (req, res) => {
   try {
-    const { isAvailable, workingHours } = req.body;
+    const { isAvailable, workingHours, regions } = req.body;
 
     const updates = {};
     if (isAvailable !== undefined) updates['courierInfo.isAvailable'] = isAvailable;
     if (workingHours) {
       updates['courierInfo.workingHours.start'] = workingHours.start;
       updates['courierInfo.workingHours.end'] = workingHours.end;
+    }
+    // Xidmət regionlarını yenilə (qeydiyyatdan sonra da dəyişdirilə bilər)
+    if (Array.isArray(regions)) {
+      updates['courierInfo.regions'] = regions;
     }
 
     const user = await User.findByIdAndUpdate(

@@ -19,10 +19,13 @@ export const api = {
   moveWishlistToCart: (payload) => http.post('/wishlist/move-to-cart', payload).then(unwrap),
   getMyOrders: () => http.get('/orders/my').then(unwrap),
   createOrder: (payload) => http.post('/orders', payload).then(unwrap),
+  estimateDelivery: (payload) => http.post('/orders/estimate-delivery', payload).then(unwrap),
   updateOrderStatus: (id, status) => http.put(`/orders/${id}/status`, { status }).then(unwrap),
+  addCourierReview: (id, payload) => http.post(`/orders/${id}/courier-review`, payload).then(unwrap),
   createPaymentIntent: (payload) => http.post('/payments/create-intent', payload).then(unwrap),
   confirmPayment: (payload) => http.post('/payments/confirm', payload).then(unwrap),
   getReviews: (productId) => http.get(`/reviews/product/${productId}`).then(unwrap),
+  getMyReviews: () => http.get('/reviews/my').then(unwrap),
   addReview: (payload) => http.post('/reviews', payload).then(unwrap),
   calculateDelivery: (payload) => http.post('/delivery/calculate', payload).then(unwrap),
   login: (payload) => http.post('/auth/login', payload).then(unwrap),
@@ -33,13 +36,10 @@ export const api = {
   me: () => http.get('/auth/me').then(unwrap),
   sellerDashboard: () => http.get('/seller/dashboard').then(unwrap),
   sellerOrders: () => http.get('/seller/orders').then(unwrap),
+  sellerReviews: () => http.get('/seller/reviews').then(unwrap),
   sellerProducts: () => http.get('/products/my/products').then(unwrap),
-  createSellerProduct: (formData) => http.post('/products', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' }
-  }).then(unwrap),
-  updateProduct: (id, formData) => http.put(`/products/${id}`, formData, {
-    headers: { 'Content-Type': 'multipart/form-data' }
-  }).then(unwrap),
+  createSellerProduct: (formData) => http.post('/products', formData).then(unwrap),
+  updateProduct: (id, formData) => http.put(`/products/${id}`, formData).then(unwrap),
   deleteProduct: (id) => http.delete(`/products/${id}`).then(unwrap),
   getOrder: (id) => http.get(`/orders/${id}`).then(unwrap),
   updateSellerProfile: (payload) => http.put('/seller/profile', payload).then(unwrap),
@@ -50,9 +50,19 @@ export const api = {
   markAllNotificationsRead: () => http.put('/notifications/read-all').then(unwrap),
   courierDashboard: () => http.get('/courier/dashboard').then(unwrap),
   courierOrders: () => http.get('/courier/deliveries').then(unwrap),
+  courierAvailableOrders: () => http.get('/courier/available-orders').then(unwrap),
+  courierAcceptOrder: (id) => http.post(`/courier/accept-order/${id}`).then(unwrap),
+  courierUpdateDeliveryStatus: (id, status) => http.put(`/courier/deliveries/${id}/status`, { status }).then(unwrap),
+  updateCourierAvailability: (payload) => http.put('/courier/availability', payload).then(unwrap),
   adminDashboard: () => http.get('/admin/dashboard').then(unwrap),
   adminUsers: () => http.get('/admin/users').then(unwrap),
   adminOrders: () => http.get('/admin/orders').then(unwrap),
   adminPendingProducts: () => http.get('/admin/products/pending').then(unwrap),
-  approveProduct: (id, payload) => http.put(`/admin/products/${id}/approve`, payload).then(unwrap)
+  approveProduct: (id, payload) => http.put(`/admin/products/${id}/approve`, payload).then(unwrap),
+  markPayout: (id, target) => http.put(`/admin/orders/${id}/payout`, { target }).then(unwrap),
+  getConversations: (params = {}) => http.get('/conversations', { params }).then(unwrap),
+  createConversation: (payload) => http.post('/conversations', payload).then(unwrap),
+  getMessages: (id) => http.get(`/conversations/${id}/messages`).then(unwrap),
+  sendMessage: (id, payload) => http.post(`/conversations/${id}/messages`, payload).then(unwrap),
+  markConversationRead: (id) => http.put(`/conversations/${id}/read`).then(unwrap)
 };

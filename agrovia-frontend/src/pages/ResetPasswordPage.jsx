@@ -4,6 +4,8 @@ import { useMutation } from '@tanstack/react-query';
 import { CheckCircle } from 'lucide-react';
 import { api } from '../api/agroviaApi';
 import { SectionTitle } from '../components/Ui';
+import FormField from '../components/FormField';
+import PasswordInput from '../components/PasswordInput';
 
 export default function ResetPasswordPage() {
   const { token } = useParams();
@@ -14,26 +16,31 @@ export default function ResetPasswordPage() {
 
   const mutation = useMutation({
     mutationFn: (payload) => api.resetPassword(token, payload),
-    onSuccess: () => {
-      setSuccess(true);
-      setError('');
-    },
-    onError: (err) => {
-      setError(err.response?.data?.message || 'Şifrə sıfırlanmadı');
-    }
+    onSuccess: () => { setSuccess(true); setError(''); },
+    onError: (err) => setError(err.response?.data?.message || 'Şifrə sıfırlanmadı'),
   });
 
   const handleSubmit = (event) => {
     event.preventDefault();
     setError('');
+
     if (newPassword.length < 8) {
       setError('Şifrə ən az 8 simvol olmalıdır');
+      return;
+    }
+    if (!/[A-Z]/.test(newPassword)) {
+      setError('Şifrədə ən az bir böyük hərf olmalıdır');
+      return;
+    }
+    if (!/[0-9]/.test(newPassword)) {
+      setError('Şifrədə ən az bir rəqəm olmalıdır');
       return;
     }
     if (newPassword !== confirmPassword) {
       setError('Şifrələr uyğun gəlmir');
       return;
     }
+
     mutation.mutate({ newPassword });
   };
 
@@ -57,26 +64,30 @@ export default function ResetPasswordPage() {
               <Link to="/auth" className="btn-primary inline-flex">Daxil ol</Link>
             </div>
           ) : (
-            <form className="grid gap-4" onSubmit={handleSubmit}>
-              {error ? (
+            <form className="grid gap-4" onSubmit={handleSubmit} noValidate>
+              {error && (
                 <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
-              ) : null}
-              <input
-                className="input-shell"
-                type="password"
-                placeholder="Yeni şifrə (ən az 8 simvol)"
-                value={newPassword}
-                onChange={(event) => setNewPassword(event.target.value)}
-                disabled={mutation.isPending}
-              />
-              <input
-                className="input-shell"
-                type="password"
-                placeholder="Şifrəni təsdiqlə"
-                value={confirmPassword}
-                onChange={(event) => setConfirmPassword(event.target.value)}
-                disabled={mutation.isPending}
-              />
+              )}
+              <FormField label="Yeni şifrə" required>
+                <PasswordInput
+                  className="input-shell"
+                  placeholder="Ən az 8 simvol, 1 böyük hərf, 1 rəqəm"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  disabled={mutation.isPending}
+                  autoComplete="new-password"
+                />
+              </FormField>
+              <FormField label="Şifrəni təsdiqlə" required>
+                <PasswordInput
+                  className="input-shell"
+                  placeholder="Şifrəni yenidən daxil edin"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  disabled={mutation.isPending}
+                  autoComplete="new-password"
+                />
+              </FormField>
               <button type="submit" className="btn-primary" disabled={mutation.isPending}>
                 {mutation.isPending ? 'Sıfırlanır...' : 'Şifrəni sıfırla'}
               </button>

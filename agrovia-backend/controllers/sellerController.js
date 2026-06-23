@@ -1,7 +1,11 @@
+const mongoose = require('mongoose');
 const User = require('../models/User');
 const Product = require('../models/Product');
 const Order = require('../models/Order');
+const Review = require('../models/Review');
 const asyncHandler = require('../utils/asyncHandler');
+const ApiError = require('../utils/ApiError');
+const { isValidCoords } = require('../utils/computeOrderDelivery');
 
 // @desc    Get seller dashboard
 // @route   GET /api/seller/dashboard
@@ -9,7 +13,7 @@ const asyncHandler = require('../utils/asyncHandler');
 exports.getDashboard = asyncHandler(async (req, res) => {
   const sellerId = req.user._id;
 
-  const [user, totalProducts, totalOrders, pendingOrders, revenue] = await Promise.all([
+  const [user, totalProducts, totalOrders, pendingOrders, revenue, payable] = await Promise.all([
     User.findById(req.user.id),
     Product.countDocuments({ seller: req.user.id }),
     Order.countDocuments({ 'items.seller': req.user.id }),
@@ -22,8 +26,19 @@ exports.getDashboard = asyncHandler(async (req, res) => {
       { $unwind: '$items' },
       { $match: { 'items.seller': sellerId } },
       { $group: { _id: null, total: { $sum: '$items.totalPrice' } } }
+    ]),
+    // Payable = this seller's item totals across DELIVERED orders whose seller payout is
+    // still available (not yet paid out). Excludes delivery fee by construction.
+    Order.aggregate([
+      { $match: { 'items.seller': sellerId, status: 'delivered', 'payout.sellerPayoutStatus': 'available' } },
+      { $unwind: '$items' },
+      { $match: { 'items.seller': sellerId } },
+      { $group: { _id: null, total: { $sum: '$items.totalPrice' } } }
     ])
   ]);
+
+  const commissionRate = Number(process.env.PLATFORM_COMMISSION_RATE || 0);
+  const payableGross = payable[0]?.total || 0;
 
   res.status(200).json({
     success: true,
@@ -35,7 +50,8 @@ exports.getDashboard = asyncHandler(async (req, res) => {
       totalProducts,
       totalOrders,
       pendingOrders,
-      revenue: revenue[0]?.total || 0
+      revenue: revenue[0]?.total || 0,
+      payable: Math.round(payableGross * (1 - commissionRate) * 100) / 100
     }
   });
 });
@@ -69,11 +85,32 @@ exports.getSellerOrders = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc    Get reviews written for this seller's products
+// @route   GET /api/seller/reviews
+// @access  Private (Seller)
+exports.getSellerReviews = asyncHandler(async (req, res) => {
+  // Authorization is backend-enforced: only reviews of THIS seller's products.
+  const sellerProductIds = (await Product.find({ seller: req.user.id }).select('_id')).map((p) => p._id);
+
+  // trusted() is required — sanitizeFilter (config/database.js) would neutralize a raw $in.
+  const reviews = await Review.find({ product: mongoose.trusted({ $in: sellerProductIds }) })
+    .populate('product', 'name images seller')
+    .populate('user', 'firstName lastName avatar')
+    .populate('order', 'orderNumber')
+    .sort({ createdAt: -1 });
+
+  res.status(200).json({
+    success: true,
+    count: reviews.length,
+    reviews
+  });
+});
+
 // @desc    Update seller profile
 // @route   PUT /api/seller/profile
 // @access  Private (Seller)
 exports.updateSellerProfile = asyncHandler(async (req, res) => {
-  const { businessName, businessDescription, taxNumber, saleType } = req.body;
+  const { businessName, businessDescription, taxNumber, saleType, pickupLocation } = req.body;
 
   const updateFields = {
     'sellerInfo.businessName': businessName,
@@ -83,6 +120,16 @@ exports.updateSellerProfile = asyncHandler(async (req, res) => {
 
   if (saleType && ['retail', 'wholesale', 'both'].includes(saleType)) {
     updateFields['sellerInfo.saleType'] = saleType;
+  }
+
+  // Exact pickup/origin point — only persist valid coordinates.
+  if (pickupLocation !== undefined) {
+    if (pickupLocation && !isValidCoords(pickupLocation)) {
+      throw new ApiError(400, 'Götürmə nöqtəsi üçün düzgün koordinatlar seçin');
+    }
+    updateFields['sellerInfo.pickupLocation'] = isValidCoords(pickupLocation)
+      ? { lat: Number(pickupLocation.lat), lng: Number(pickupLocation.lng) }
+      : undefined;
   }
 
   const user = await User.findByIdAndUpdate(

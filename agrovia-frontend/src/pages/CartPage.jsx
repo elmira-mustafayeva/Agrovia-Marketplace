@@ -1,12 +1,19 @@
 import { useState } from 'react';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate } from 'react-router-dom';
-import { Heart, Minus, Plus, ShoppingBag, Trash2 } from 'lucide-react';
+import { Heart, ShoppingBag, Trash2 } from 'lucide-react';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, CardNumberElement, CardExpiryElement, CardCvcElement, useStripe, useElements } from '@stripe/react-stripe-js';
 import { api } from '../api/agroviaApi';
 import { useCart, useRegions, useWishlist } from '../hooks/useAgroviaData';
 import { EmptyState, LoadingGrid, SectionTitle, UNIT_LABELS, formatPrice } from '../components/Ui';
+import LocationPicker from '../components/LocationPicker';
+import FormField from '../components/FormField';
+import PhoneInput from '../components/PhoneInput';
+import QuantityInput from '../components/QuantityInput';
+import { checkoutSchema } from '../lib/validation';
 
 const stripePromise = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY
   ? loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY)
@@ -16,7 +23,6 @@ const stripeFieldStyle = {
   base: { fontSize: '14px', color: '#1e293b', '::placeholder': { color: '#94a3b8' } }
 };
 
-// Must be rendered inside <Elements> so useStripe/useElements work
 function StripeCardForm({ clientSecret, onSuccess, onCancel }) {
   const stripe = useStripe();
   const elements = useElements();
@@ -34,7 +40,6 @@ function StripeCardForm({ clientSecret, onSuccess, onCancel }) {
       setProcessing(false);
       setCardError(result.error.message);
     } else {
-      // Keep button disabled while parent awaits api.confirmPayment + navigate
       onSuccess();
     }
   };
@@ -64,20 +69,10 @@ function StripeCardForm({ clientSecret, onSuccess, onCancel }) {
         </div>
       </div>
       {cardError ? <p className="text-sm text-red-600">{cardError}</p> : null}
-      <button
-        type="button"
-        className="btn-primary w-full"
-        onClick={handlePay}
-        disabled={!stripe || processing}
-      >
+      <button type="button" className="btn-primary w-full" onClick={handlePay} disabled={!stripe || processing}>
         {processing ? 'Ödəniş emal edilir...' : 'Ödənişi tamamla'}
       </button>
-      <button
-        type="button"
-        className="btn-secondary w-full"
-        onClick={onCancel}
-        disabled={processing}
-      >
+      <button type="button" className="btn-secondary w-full" onClick={onCancel} disabled={processing}>
         Ləğv et
       </button>
     </div>
@@ -93,27 +88,70 @@ export default function CartPage() {
 
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [checkoutError, setCheckoutError] = useState('');
-  const [form, setForm] = useState({ recipientName: '', phone: '', region: '', street: '', notes: '' });
-
-  // Populated after createPaymentIntent succeeds — shape: { clientSecret, paymentIntentId, amount }
   const [pendingPayment, setPendingPayment] = useState(null);
-
   const [confirmPending, setConfirmPending] = useState(null);
   const [toast, setToast] = useState({ message: '', type: '' });
 
+  // Delivery estimate state (external to RHF — driven by map/region/street)
+  const [deliveryEstimate, setDeliveryEstimate] = useState(null);
+  const [pickedLocation, setPickedLocation] = useState(null);
+  const [mapAvailable, setMapAvailable] = useState(false);
+
+  // ── Checkout form (RHF + Zod) ──────────────────────────────────────────────
+  const {
+    register,
+    handleSubmit,
+    control,
+    watch,
+    setValue,
+    formState: { errors: fe },
+  } = useForm({
+    resolver: zodResolver(checkoutSchema),
+    defaultValues: { recipientName: '', phone: '', region: '', street: '', notes: '' },
+  });
+
+  const watchedRegion = watch('region');
+  const watchedStreet = watch('street');
+
+  // ── Mutations ──────────────────────────────────────────────────────────────
   const showToast = (message, type = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast({ message: '', type: '' }), 3000);
   };
 
-  // No onSuccess/onError callbacks on these — side effects live in submitOrder/handleStripeSuccess
   const orderMutation = useMutation({ mutationFn: api.createOrder });
   const paymentIntentMutation = useMutation({ mutationFn: api.createPaymentIntent });
+
+  const estimateMutation = useMutation({
+    mutationFn: ({ region, street, location }) => api.estimateDelivery({ region, street, location }),
+    onSuccess: (data) => setDeliveryEstimate({ fee: data.deliveryFee, distanceKm: data.distanceKm }),
+    onError: (err) => setDeliveryEstimate({ error: err.response?.data?.message || 'Çatdırılma hesablana bilmədi.' }),
+  });
+
+  const triggerEstimate = (region, street, location) => {
+    setDeliveryEstimate(null);
+    if (region && (location || (street && street.trim()))) {
+      estimateMutation.mutate({ region, street: (street || '').trim(), location: location || undefined });
+    }
+  };
+
+  const handleRegionChange = (e) => {
+    triggerEstimate(e.target.value, watchedStreet, pickedLocation);
+  };
+
+  const handleStreetBlur = () => triggerEstimate(watchedRegion, watchedStreet, pickedLocation);
+
+  const handlePickLocation = ({ lat, lng, addressText }) => {
+    const location = { lat, lng };
+    setPickedLocation(location);
+    if (addressText) setValue('street', addressText);
+    triggerEstimate(watchedRegion, addressText || watchedStreet, location);
+  };
 
   const updateMutation = useMutation({
     mutationFn: ({ itemId, quantity }) => api.updateCartItem(itemId, { quantity }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['cart'] }),
-    onError: (err) => showToast(err.response?.data?.message || 'Miqdar yenilənmədi.', 'error')
+    onError: (err) => showToast(err.response?.data?.message || 'Miqdar yenilənmədi.', 'error'),
   });
 
   const removeMutation = useMutation({
@@ -126,12 +164,12 @@ export default function CartPage() {
     onError: (err) => {
       setConfirmPending(null);
       showToast(err.response?.data?.message || 'Silinərkən xəta baş verdi.', 'error');
-    }
+    },
   });
 
   const clearMutation = useMutation({
     mutationFn: api.clearCart,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['cart'] })
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['cart'] }),
   });
 
   const wishlistQuery = useWishlist();
@@ -147,126 +185,74 @@ export default function CartPage() {
 
   const addToWishlistMutation = useMutation({
     mutationFn: api.addToWishlist,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['wishlist'] });
-      showToast('Məhsul wishlist-ə əlavə edildi.');
-    },
-    onError: (err) => {
-      showToast(err.response?.data?.message || 'Wishlist-ə əlavə edilmədi.', 'error');
-    }
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['wishlist'] }); showToast('Məhsul wishlist-ə əlavə edildi.'); },
+    onError: (err) => showToast(err.response?.data?.message || 'Wishlist-ə əlavə edilmədi.', 'error'),
   });
 
   const removeFromWishlistMutation = useMutation({
     mutationFn: api.removeFromWishlist,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['wishlist'] });
-      showToast('Məhsul wishlist-dən silindi.');
-    },
-    onError: (err) => {
-      showToast(err.response?.data?.message || 'Silinərkən xəta baş verdi.', 'error');
-    }
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['wishlist'] }); showToast('Məhsul wishlist-dən silindi.'); },
+    onError: (err) => showToast(err.response?.data?.message || 'Silinərkən xəta baş verdi.', 'error'),
   });
 
   const handleWishlistToggle = (item) => {
     const productId = item.product?._id;
     if (!productId) return;
-    if (isInWishlist(productId)) {
-      removeFromWishlistMutation.mutate(productId);
-    } else {
-      addToWishlistMutation.mutate({ productId });
-    }
+    if (isInWishlist(productId)) removeFromWishlistMutation.mutate(productId);
+    else addToWishlistMutation.mutate({ productId });
   };
 
-  const handleRemoveClick = (item) => {
-    setConfirmPending({ itemId: item._id, productName: item.product?.name || 'məhsul' });
-  };
-
-  const handleDecrease = (item) => {
-    const minQty = item.product?.minOrderQuantity || 1;
-    if (item.quantity > minQty) {
-      updateMutation.mutate({ itemId: item._id, quantity: item.quantity - 1 });
-    } else {
-      const label = UNIT_LABELS[item.product?.unit] || item.product?.unit || '';
-      showToast(`Bu məhsuldan minimum ${minQty} ${label} sifariş etməlisiniz.`, 'info');
-    }
-  };
-
-  const setField = (field) => (e) => setForm((prev) => ({ ...prev, [field]: e.target.value }));
-
-  // Step 1 + 2 combined: create order then create payment intent sequentially.
-  // navigate is NOT called here. After this resolves, pendingPayment is set and
-  // the Stripe CardElement panel renders.
-  const submitOrder = async (event) => {
-    event.preventDefault();
+  // ── Checkout submit (wrapped by RHF handleSubmit) ─────────────────────────
+  const submitOrder = handleSubmit(async (data) => {
     setCheckoutError('');
-    const { recipientName, phone, region, street, notes } = form;
-    if (!recipientName.trim() || !phone.trim() || !region || !street.trim()) {
-      setCheckoutError('Bütün məcburi sahələri (*) doldurun');
+
+    if (mapAvailable && !pickedLocation) {
+      setCheckoutError('Zəhmət olmasa çatdırılma ünvanını xəritədən seçin.');
       return;
     }
 
     try {
-      // POST /api/orders → { success, message, order: { _id, totalAmount, ... } }
       const orderData = await orderMutation.mutateAsync({
         deliveryAddress: {
-          recipientName: recipientName.trim(),
-          phone: phone.trim(),
-          region,
-          street: street.trim()
+          recipientName: data.recipientName,
+          phone: data.phone,
+          region: data.region,
+          street: data.street,
+          coordinates: pickedLocation || undefined,
         },
         paymentMethod: 'card',
-        notes: notes.trim() || undefined
+        notes: data.notes?.trim() || undefined,
       });
 
       const orderId = orderData?.order?._id;
-      if (!orderId) {
-        setCheckoutError('Sifariş yaradıldı lakin ID alınmadı.');
-        return;
-      }
+      if (!orderId) { setCheckoutError('Sifariş yaradıldı lakin ID alınmadı.'); return; }
 
-      // POST /api/payments/create-intent → { success, message, data: { clientSecret, paymentIntentId, amount, currency } }
       const intentData = await paymentIntentMutation.mutateAsync({ orderId });
       const { clientSecret, paymentIntentId, amount } = intentData?.data ?? {};
 
-      if (!clientSecret) {
-        setCheckoutError('Ödəniş başladıla bilmədi. Yenidən cəhd edin.');
-        return;
-      }
+      if (!clientSecret) { setCheckoutError('Ödəniş başladıla bilmədi. Yenidən cəhd edin.'); return; }
 
-      // Show Stripe card form — navigate is NOT called until card payment succeeds
       setPendingPayment({ clientSecret, paymentIntentId, amount });
-
     } catch (err) {
       setCheckoutError(err?.response?.data?.message || 'Sifariş yaradılmadı. Yenidən cəhd edin.');
     }
-  };
+  });
 
-  // Step 3: called ONLY after stripe.confirmCardPayment resolves without error.
-  // This is the ONLY place navigate('/orders') is called.
   const handleStripeSuccess = async () => {
-    try {
-      // Tell backend to mark order as paid (payment.status = 'paid')
-      await api.confirmPayment({ paymentIntentId: pendingPayment.paymentIntentId });
-    } catch {
-      // Stripe already processed the charge — navigate regardless.
-      // The webhook or admin can reconcile if backend update fails.
-    }
+    try { await api.confirmPayment({ paymentIntentId: pendingPayment.paymentIntentId }); } catch { /* webhook reconciles */ }
     showToast('Ödəniş uğurla tamamlandı.', 'success');
     queryClient.invalidateQueries({ queryKey: ['cart'] });
     queryClient.invalidateQueries({ queryKey: ['orders'] });
     setTimeout(() => navigate('/orders'), 1500);
   };
 
-  const handleStripeCancel = () => {
-    // Order exists with payment.status='pending'. Redirect so user can see it.
-    navigate('/orders');
-  };
+  const handleStripeCancel = () => navigate('/orders');
 
+  // ── Derived values ─────────────────────────────────────────────────────────
   const items = cart?.items || [];
   const subtotal = items.reduce((sum, item) => sum + (item.price || item.product?.price || 0) * item.quantity, 0);
-  const deliveryFee = subtotal >= 50 ? 0 : 5;
-  const total = subtotal + deliveryFee;
-
+  const deliveryFee = deliveryEstimate?.fee ?? null;
+  const total = subtotal + (deliveryFee || 0);
   const isSubmitting = orderMutation.isPending || paymentIntentMutation.isPending;
 
   return (
@@ -278,25 +264,13 @@ export default function CartPage() {
       ) : null}
 
       {confirmPending ? (
-        <div
-          className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/50"
-          onClick={(e) => { if (e.target === e.currentTarget) setConfirmPending(null); }}
-        >
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/50" onClick={(e) => { if (e.target === e.currentTarget) setConfirmPending(null); }}>
           <div className="mx-4 w-full max-w-sm space-y-4 rounded-3xl border border-slate-200 bg-white p-6 shadow-soft">
             <div className="text-base font-semibold text-ink">Bu məhsulu sil?</div>
-            <p className="text-sm text-slate-600">
-              <strong>{confirmPending.productName}</strong> məhsulunu səbətdən silmək istədiyinizə əminsiniz?
-            </p>
+            <p className="text-sm text-slate-600"><strong>{confirmPending.productName}</strong> məhsulunu səbətdən silmək istədiyinizə əminsiniz?</p>
             <div className="grid grid-cols-2 gap-3">
-              <button type="button" className="btn-secondary" onClick={() => setConfirmPending(null)} disabled={removeMutation.isPending}>
-                Ləğv et
-              </button>
-              <button
-                type="button"
-                className="inline-flex items-center justify-center gap-2 rounded-full bg-red-500 px-5 py-3 text-sm font-semibold text-white transition hover:bg-red-600 disabled:opacity-50"
-                onClick={() => removeMutation.mutate(confirmPending.itemId)}
-                disabled={removeMutation.isPending}
-              >
+              <button type="button" className="btn-secondary" onClick={() => setConfirmPending(null)} disabled={removeMutation.isPending}>Ləğv et</button>
+              <button type="button" className="inline-flex items-center justify-center gap-2 rounded-full bg-red-500 px-5 py-3 text-sm font-semibold text-white transition hover:bg-red-600 disabled:opacity-50" onClick={() => removeMutation.mutate(confirmPending.itemId)} disabled={removeMutation.isPending}>
                 {removeMutation.isPending ? 'Silinir...' : 'Sil'}
               </button>
             </div>
@@ -306,9 +280,6 @@ export default function CartPage() {
 
       <section className="section-shell py-10">
         <SectionTitle
-          eyebrow="Səbət"
-          title="Səbətə əlavə olunmuş məhsullar"
-          description="Bu səhifə protected API-yə qoşulur və cart state-ni yeniləyir."
           action={!pendingPayment ? (
             <button type="button" className="btn-secondary" onClick={() => clearMutation.mutate()}>Səbəti boşalt</button>
           ) : null}
@@ -318,25 +289,18 @@ export default function CartPage() {
           <LoadingGrid rows={2} />
 
         ) : pendingPayment ? (
-          // Payment step — checked BEFORE items.length so an empty React Query cart
-          // cache (backend clears cart on order creation) never hides this panel
           <div className="mx-auto max-w-lg">
             <div className="panel space-y-6">
               <div>
                 <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Ödəniş məbləği</div>
                 <div className="mt-1 text-3xl font-semibold text-forest">{formatPrice(pendingPayment.amount)}</div>
-                <div className="mt-1 text-sm text-slate-500">Kart məlumatlarınızı daxil edin</div>
               </div>
               {checkoutError ? (
                 <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{checkoutError}</div>
               ) : null}
               {stripePromise ? (
                 <Elements stripe={stripePromise} options={{ locale: 'en' }}>
-                  <StripeCardForm
-                    clientSecret={pendingPayment.clientSecret}
-                    onSuccess={handleStripeSuccess}
-                    onCancel={handleStripeCancel}
-                  />
+                  <StripeCardForm clientSecret={pendingPayment.clientSecret} onSuccess={handleStripeSuccess} onCancel={handleStripeCancel} />
                 </Elements>
               ) : (
                 <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
@@ -347,16 +311,11 @@ export default function CartPage() {
           </div>
 
         ) : items.length === 0 ? (
-          <EmptyState
-            icon={ShoppingBag}
-            title="Səbət boşdur"
-            description="Məhsul əlavə edib burada miqdarını dəyişə bilərsən."
-            action={<Link className="btn-primary" to="/shop">Alış-verişə başla</Link>}
-          />
+          <EmptyState icon={ShoppingBag} title="Səbət boşdur" description="Məhsul əlavə edib burada miqdarını dəyişə bilərsən." action={<Link className="btn-primary" to="/shop">Alış-verişə başla</Link>} />
 
         ) : (
-          // Cart list + delivery form
           <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
+            {/* Cart items */}
             <div className="space-y-4">
               {items.map((item) => (
                 <div key={item._id} className="panel flex items-start gap-4">
@@ -389,7 +348,7 @@ export default function CartPage() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleRemoveClick(item)}
+                          onClick={() => setConfirmPending({ itemId: item._id, productName: item.product?.name || 'məhsul' })}
                           className="rounded-full p-2 text-slate-400 transition hover:bg-red-50 hover:text-red-500"
                           title="Məhsulu sil"
                         >
@@ -398,25 +357,14 @@ export default function CartPage() {
                       </div>
                     </div>
                     <div className="mt-3 flex items-center justify-between gap-4">
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          className="rounded-full border border-slate-200 p-2 transition hover:border-slate-300 disabled:opacity-40"
-                          onClick={() => handleDecrease(item)}
-                          disabled={updateMutation.isPending}
-                        >
-                          <Minus className="h-4 w-4" />
-                        </button>
-                        <span className="min-w-10 text-center text-sm font-semibold">{item.quantity}</span>
-                        <button
-                          type="button"
-                          className="rounded-full border border-slate-200 p-2 transition hover:border-slate-300 disabled:opacity-40"
-                          onClick={() => updateMutation.mutate({ itemId: item._id, quantity: item.quantity + 1 })}
-                          disabled={updateMutation.isPending}
-                        >
-                          <Plus className="h-4 w-4" />
-                        </button>
-                      </div>
+                      {/* Quantity: direct typed input + buttons, validates on blur/Enter */}
+                      <QuantityInput
+                        value={item.quantity}
+                        min={item.product?.minOrderQuantity || 1}
+                        max={item.product?.stockQuantity || 9999}
+                        disabled={updateMutation.isPending}
+                        onChange={(qty) => updateMutation.mutate({ itemId: item._id, quantity: qty })}
+                      />
                       <div className="text-sm font-semibold text-ink">
                         {formatPrice((item.price || item.product?.price || 0) * item.quantity)}
                       </div>
@@ -426,6 +374,7 @@ export default function CartPage() {
               ))}
             </div>
 
+            {/* Order summary + checkout form */}
             <div className="panel h-fit space-y-4">
               <div className="text-sm font-semibold text-slate-500">Sifariş xülasəsi</div>
               <div className="rounded-3xl bg-slate-50 p-5 space-y-3">
@@ -434,9 +383,17 @@ export default function CartPage() {
                   <span className="font-semibold text-ink">{formatPrice(subtotal)}</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
-                  <span>Çatdırılma</span>
-                  <span className="font-semibold text-forest">{deliveryFee === 0 ? 'Pulsuz' : formatPrice(deliveryFee)}</span>
+                  <span>Çatdırılma{deliveryEstimate?.distanceKm ? ` (~${deliveryEstimate.distanceKm} km)` : ''}</span>
+                  <span className="font-semibold text-forest">
+                    {estimateMutation.isPending ? 'hesablanır…'
+                      : deliveryEstimate?.error ? 'Hesablana bilmədi'
+                      : deliveryFee != null ? formatPrice(deliveryFee)
+                      : 'Region və ünvan daxil edin'}
+                  </span>
                 </div>
+                {deliveryEstimate?.error ? (
+                  <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">{deliveryEstimate.error}</div>
+                ) : null}
                 <div className="flex items-center justify-between border-t border-slate-200 pt-3 text-sm font-semibold">
                   <span>Cəmi</span>
                   <span className="text-forest">{formatPrice(total)}</span>
@@ -444,32 +401,85 @@ export default function CartPage() {
               </div>
 
               {checkoutOpen ? (
-                <form onSubmit={submitOrder} className="space-y-3">
+                <form onSubmit={submitOrder} className="space-y-3" noValidate>
                   <div className="text-sm font-semibold text-slate-700">Çatdırılma məlumatları</div>
                   {checkoutError ? (
                     <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{checkoutError}</div>
                   ) : null}
-                  <input className="input-shell" placeholder="Ad Soyad *" value={form.recipientName} onChange={setField('recipientName')} disabled={isSubmitting} />
-                  <input className="input-shell" placeholder="Telefon *" value={form.phone} onChange={setField('phone')} disabled={isSubmitting} />
-                  <select className="input-shell" value={form.region} onChange={setField('region')} disabled={isSubmitting}>
-                    <option value="">Region seçin *</option>
-                    {regions.map((r) => <option key={r._id} value={r._id}>{r.name}</option>)}
-                  </select>
-                  <input className="input-shell" placeholder="Küçə / Ünvan *" value={form.street} onChange={setField('street')} disabled={isSubmitting} />
-                  <textarea className="input-shell" placeholder="Qeyd (istəyə bağlı)" value={form.notes} onChange={setField('notes')} disabled={isSubmitting} rows={2} />
+
+                  <FormField label="Ad Soyad" error={fe.recipientName} required>
+                    <input
+                      className={`input-shell ${fe.recipientName ? 'input-error' : ''}`}
+                      placeholder="Ad Soyad"
+                      disabled={isSubmitting}
+                      autoComplete="name"
+                      {...register('recipientName')}
+                    />
+                  </FormField>
+
+                  <FormField label="Telefon" error={fe.phone} required>
+                    <Controller
+                      name="phone"
+                      control={control}
+                      render={({ field }) => (
+                        <PhoneInput
+                          value={field.value}
+                          onChange={field.onChange}
+                          onBlur={field.onBlur}
+                          name={field.name}
+                          hasError={!!fe.phone}
+                        />
+                      )}
+                    />
+                  </FormField>
+
+                  <FormField label="Region" error={fe.region} required>
+                    <select
+                      className={`input-shell ${fe.region ? 'input-error' : ''}`}
+                      disabled={isSubmitting}
+                      {...register('region', { onChange: handleRegionChange })}
+                    >
+                      <option value="">Region seçin</option>
+                      {regions.map((r) => <option key={r._id} value={r._id}>{r.name}</option>)}
+                    </select>
+                  </FormField>
+
+                  <LocationPicker
+                    value={pickedLocation}
+                    onChange={handlePickLocation}
+                    onAvailabilityChange={setMapAvailable}
+                    placeholder="Çatdırılma ünvanını xəritədə tap..."
+                  />
+
+                  <FormField label="Küçə / dəqiq ünvan" error={fe.street} required>
+                    <input
+                      className={`input-shell ${fe.street ? 'input-error' : ''}`}
+                      placeholder="Küçə / dəqiq ünvan"
+                      disabled={isSubmitting}
+                      autoComplete="street-address"
+                      {...register('street', { onBlur: handleStreetBlur })}
+                    />
+                  </FormField>
+
+                  <FormField label="Qeyd" error={fe.notes}>
+                    <textarea
+                      className="input-shell"
+                      placeholder="Qeyd (istəyə bağlı)"
+                      disabled={isSubmitting}
+                      rows={2}
+                      {...register('notes')}
+                    />
+                  </FormField>
+
                   <button type="submit" className="btn-primary w-full" disabled={isSubmitting}>
-                    {isSubmitting ? 'Göndərilir...' : 'Ödənişə keç'}
+                    {isSubmitting ? 'Ödənişə keçilir...' : 'Sifariş ver'}
                   </button>
                   <button type="button" className="btn-secondary w-full" onClick={() => setCheckoutOpen(false)} disabled={isSubmitting}>
                     Ləğv et
                   </button>
                 </form>
               ) : (
-                <button
-                  type="button"
-                  className="btn-primary w-full"
-                  onClick={() => { setCheckoutOpen(true); setCheckoutError(''); }}
-                >
+                <button type="button" className="btn-primary w-full" onClick={() => { setCheckoutOpen(true); setCheckoutError(''); }}>
                   Sifariş ver
                 </button>
               )}

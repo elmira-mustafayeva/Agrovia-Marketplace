@@ -8,8 +8,9 @@ const {
   verifySeller, 
   getPendingProducts, 
   approveProduct, 
-  getAllOrders, 
-  assignCourier 
+  getAllOrders,
+  assignCourier,
+  markPayout
 } = require('../controllers/adminController');
 const { protect, authorize } = require('../middleware/auth');
 
@@ -31,6 +32,7 @@ router.put('/products/:id/approve', protect, authorize('admin'), approveProduct)
 // Orders
 router.get('/orders', protect, authorize('admin'), getAllOrders);
 router.put('/orders/:id/assign-courier', protect, authorize('admin'), assignCourier);
+router.put('/orders/:id/payout', protect, authorize('admin'), markPayout);
 
 // KATEQORIYA CRUD
 const { 

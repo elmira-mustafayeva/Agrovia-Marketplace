@@ -1,6 +1,46 @@
+import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowRight, BadgeCheck, Clock3, Heart, Leaf, PackageSearch, Sprout, Truck } from 'lucide-react';
+import { ArrowRight, BadgeCheck, Clock3, Heart, Leaf, PackageSearch, Sprout, Star, Truck } from 'lucide-react';
 import { formatDate, formatPrice, getProductImage, roleLabel } from '../lib/format';
+
+// Read-only star display: filled up to `value`, empty after. e.g. value 3 → ★★★☆☆
+export function Stars({ value = 0, className = '' }) {
+  const v = Math.max(0, Math.min(5, Math.round(Number(value) || 0)));
+  return (
+    <span className={`inline-flex items-center gap-0.5 ${className}`} aria-label={`${v}/5`}>
+      {[1, 2, 3, 4, 5].map((n) => (
+        <Star key={n} className={`h-4 w-4 ${n <= v ? 'fill-amber-400 text-amber-400' : 'text-slate-300'}`} />
+      ))}
+    </span>
+  );
+}
+
+// Interactive 5-star picker. Empty by default (value 0); user must actively choose.
+export function StarRating({ value, onChange, disabled }) {
+  const [hover, setHover] = useState(0);
+  return (
+    <div className="flex items-center gap-1" role="radiogroup" aria-label="Ulduz qiymətləndirmə">
+      {[1, 2, 3, 4, 5].map((n) => {
+        const filled = (hover || value) >= n;
+        return (
+          <button
+            key={n}
+            type="button"
+            disabled={disabled}
+            aria-label={`${n} ulduz`}
+            aria-pressed={value === n}
+            onClick={() => onChange(n)}
+            onMouseEnter={() => setHover(n)}
+            onMouseLeave={() => setHover(0)}
+            className="rounded p-0.5 transition disabled:cursor-not-allowed"
+          >
+            <Star className={`h-7 w-7 ${filled ? 'fill-amber-400 text-amber-400' : 'text-slate-300'}`} />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 export const UNIT_LABELS = {
   kg: 'kq',
@@ -157,6 +197,9 @@ export const ProductCard = ({ product, onAddToCart, onWishlistToggle, isInWishli
             <div className="shrink-0 text-right">
               <span className="text-sm font-semibold text-forest">{formatPrice(price)}</span>
               {product?.unit ? <span className="text-xs text-slate-500"> / {UNIT_LABELS[product.unit] || product.unit}</span> : null}
+              {discount > 0 ? (
+                <div className="text-xs text-slate-400 line-through">{formatPrice(product.price)}</div>
+              ) : null}
             </div>
           </div>
           <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-600">{product?.description}</p>

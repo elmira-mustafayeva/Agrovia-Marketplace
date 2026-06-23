@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
+import { useForm, Controller } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import { useSelector, useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -24,6 +26,8 @@ import {
   SlidersHorizontal,
   Sprout,
   Star,
+  MessageCircle,
+  LifeBuoy,
   Trash2,
   Upload,
   User,
@@ -33,17 +37,23 @@ import {
 } from 'lucide-react';
 import { api } from '../api/agroviaApi';
 import { clearCredentials, setCredentials } from '../features/auth/authSlice';
-import { useSellerOrders, useUpdateOrderStatus } from '../hooks/useAgroviaData';
+import { useSellerOrders, useSellerReviews, useUpdateOrderStatus } from '../hooks/useAgroviaData';
 import {
   ORDER_STATUS_LABELS,
   PAYMENT_METHOD_LABELS,
   PAYMENT_STATUS_LABELS,
   StatusBadge,
+  Stars,
   UNIT_LABELS,
   formatDate,
   formatPrice,
   getProductImage,
 } from '../components/Ui';
+import LocationPicker from '../components/LocationPicker';
+import PhoneInput from '../components/PhoneInput';
+import QuantityInput from '../components/QuantityInput';
+import { productSchema } from '../lib/validation';
+import { useOpenConversation } from '../hooks/useOpenConversation';
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
@@ -52,6 +62,7 @@ const NAV_ITEMS = [
   { key: 'products',    icon: Package,         label: 'Məhsullarım' },
   { key: 'add-product', icon: Plus,            label: 'Məhsul əlavə et' },
   { key: 'orders',      icon: ShoppingBag,     label: 'Sifarişlər' },
+  { key: 'reviews',     icon: Star,            label: 'Rəylər' },
   { key: 'profile',     icon: User,            label: 'Profil' },
   { key: 'settings',    icon: Settings,        label: 'Tənzimləmələr' },
 ];
@@ -59,7 +70,6 @@ const NAV_ITEMS = [
 const LOCKED_ITEMS = [
   { icon: Warehouse, label: 'Anbar' },
   { icon: BarChart3, label: 'Analitika' },
-  { icon: Star,      label: 'Rəylər' },
 ];
 
 const BREADCRUMBS = {
@@ -67,6 +77,7 @@ const BREADCRUMBS = {
   products:       ['Məhsullar', 'Məhsul idarəetməsi'],
   'add-product':  ['Məhsullar', 'Yeni məhsul'],
   orders:         ['Sifarişlər', 'Sifariş idarəetməsi'],
+  reviews:        ['Rəylər', 'Məhsul rəyləri'],
   profile:        ['Profil', 'Satıcı məlumatları'],
   settings:       ['Tənzimləmələr'],
   'coming-soon':  ['Tezliklə'],
@@ -102,7 +113,7 @@ const EMPTY_FILTERS = { status: 'all', saleType: 'all', category: 'all', stock: 
 
 // ─── Shared helpers ────────────────────────────────────────────────────────────
 
-function FormField({ label, helper, required, children }) {
+function FormField({ label, helper, required, error, children }) {
   return (
     <div className="space-y-1.5">
       <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -111,6 +122,7 @@ function FormField({ label, helper, required, children }) {
       </label>
       {helper ? <p className="text-[11px] leading-relaxed text-slate-400">{helper}</p> : null}
       {children}
+      {error?.message && <p className="helper-error">{error.message}</p>}
     </div>
   );
 }
@@ -125,6 +137,59 @@ function ProductStatusBadge({ status }) {
     <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${s.cls}`}>
       {s.label}
     </span>
+  );
+}
+
+// Reviews written for this seller's products (GET /api/seller/reviews — backend-filtered).
+function SellerReviewsSection() {
+  const reviewsQuery = useSellerReviews(true);
+  const reviews = reviewsQuery.data || [];
+
+  if (reviewsQuery.isLoading) {
+    return (
+      <div className="space-y-3">
+        <SkelRow />
+        <SkelRow />
+        <SkelRow />
+      </div>
+    );
+  }
+
+  if (reviews.length === 0) {
+    return (
+      <div className="rounded-2xl border border-slate-200 bg-white p-10 text-center">
+        <Star className="mx-auto h-8 w-8 text-slate-300" />
+        <p className="mt-3 text-sm text-slate-500">Məhsullarınıza hələ rəy yazılmayıb.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {reviews.map((review) => (
+        <div key={review._id} className="rounded-2xl border border-slate-200 bg-white p-4">
+          <div className="flex gap-4">
+            <img
+              src={getProductImage(review.product)}
+              alt={review.product?.name}
+              className="h-16 w-16 shrink-0 rounded-xl border border-slate-100 object-cover"
+            />
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="font-semibold text-ink">{review.product?.name || 'Məhsul'}</div>
+                <Stars value={review.productRating} />
+              </div>
+              <div className="mt-0.5 text-sm text-slate-500">
+                {review.user?.firstName} {review.user?.lastName}
+                {review.order?.orderNumber ? ` • #${review.order.orderNumber}` : ''}
+              </div>
+              <p className="mt-2 text-sm leading-6 text-slate-600">{review.productReview}</p>
+              <div className="mt-2 text-xs text-slate-400">{formatDate(review.createdAt)}</div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -193,9 +258,10 @@ function StatsRow({ stats }) {
     { icon: ClipboardList, iconCls: 'bg-amber-100 text-amber-600',     label: 'Gözləyən sifarişlər', value: stats.pendingOrders ?? 0 },
     { icon: ShoppingBag,   iconCls: 'bg-emerald-100 text-emerald-600', label: 'Ümumi sifarişlər',    value: stats.totalOrders ?? 0 },
     { icon: Wallet,        iconCls: 'bg-purple-100 text-purple-600',   label: 'Gəlir',               value: formatPrice(stats.revenue ?? 0) },
+    { icon: Wallet,        iconCls: 'bg-forest/10 text-forest',        label: 'Ödəniləcək',          value: formatPrice(stats.payable ?? 0) },
   ];
   return (
-    <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+    <div className="grid grid-cols-2 gap-4 xl:grid-cols-5">
       {cards.map(({ icon: Icon, iconCls, label, value }) => (
         <div key={label} className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
           <div className={`inline-flex items-center justify-center rounded-xl p-2.5 ${iconCls}`}>
@@ -214,6 +280,7 @@ function StatsRow({ stats }) {
 function Sidebar({ section, onSection }) {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const openChat = useOpenConversation();
 
   return (
     <aside className="flex w-56 shrink-0 flex-col overflow-y-auto border-r border-slate-200 bg-white">
@@ -222,7 +289,7 @@ function Sidebar({ section, onSection }) {
           <Sprout className="h-5 w-5" />
         </div>
         <div>
-          <div className="text-sm font-bold text-ink">agrovia</div>
+          <div className="text-sm font-bold text-ink">Agrovia</div>
           <div className="text-[10px] text-slate-400">Satıcı Paneli</div>
         </div>
       </div>
@@ -244,6 +311,14 @@ function Sidebar({ section, onSection }) {
             </button>
           );
         })}
+
+        <button
+          type="button"
+          onClick={() => navigate('/messages')}
+          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-100 hover:text-ink"
+        >
+          <MessageCircle className="h-4 w-4 shrink-0" />Mesajlar
+        </button>
 
         <div className="my-2 h-px bg-slate-100" />
 
@@ -272,7 +347,7 @@ function Sidebar({ section, onSection }) {
               <div className="text-[10px] text-slate-400">Köməyə ehtiyacınız var?</div>
             </div>
           </div>
-          <button type="button" onClick={() => navigate('/')} className="mt-2 text-xs font-medium text-forest hover:underline">
+          <button type="button" onClick={() => openChat({ type: 'support' })} className="mt-2 text-xs font-medium text-forest hover:underline">
             Bizimlə əlaqə
           </button>
         </div>
@@ -554,21 +629,36 @@ function FilterPanel({ filters, setFilters, categories, onClear }) {
 
 function EditProductModal({ product, categories, regions, onClose, onSuccess }) {
   const queryClient = useQueryClient();
-  const [form, setForm] = useState({
-    name:             product.name ?? '',
-    description:      product.description ?? '',
-    price:            String(product.price ?? ''),
-    unit:             product.unit ?? 'kg',
-    saleType:         product.saleType ?? 'retail',
-    minOrderQuantity: String(product.minOrderQuantity ?? '1'),
-    stockQuantity:    String(product.stockQuantity ?? '0'),
-    category:         product.category?._id ?? product.category ?? '',
-    region:           product.region?._id ?? product.region ?? '',
-    discountPct:      String(product.discount?.percentage ?? '0'),
-  });
   const [tags, setTags] = useState(Array.isArray(product.tags) ? product.tags : []);
+  const [location, setLocation] = useState(
+    product.location && Number.isFinite(product.location.lat)
+      ? { lat: product.location.lat, lng: product.location.lng }
+      : null
+  );
+  // region is not in productSchema — keep separate
+  const [region, setRegion] = useState(product.region?._id ?? product.region ?? '');
   const [msg, setMsg] = useState('');
   const [ok, setOk] = useState(false);
+
+  const {
+    register,
+    handleSubmit,
+    control,
+    formState: { errors: fe },
+  } = useForm({
+    resolver: zodResolver(productSchema),
+    defaultValues: {
+      name:             product.name ?? '',
+      description:      product.description ?? '',
+      price:            product.price ?? 0,
+      unit:             product.unit ?? 'kg',
+      saleType:         product.saleType ?? 'retail',
+      minOrderQuantity: product.minOrderQuantity ?? 1,
+      stockQuantity:    product.stockQuantity ?? 0,
+      category:         product.category?._id ?? product.category ?? '',
+      discountPercentage: product.discount?.percentage ?? 0,
+    },
+  });
 
   const mutation = useMutation({
     mutationFn: fd => api.updateProduct(product._id, fd),
@@ -586,70 +676,105 @@ function EditProductModal({ product, categories, regions, onClose, onSuccess }) 
     },
   });
 
-  const sf = (f, v) => setForm(p => ({ ...p, [f]: v }));
-
-  const handleSubmit = e => {
-    e.preventDefault();
+  const onSubmit = handleSubmit(data => {
     setMsg('');
     const fd = new FormData();
-    fd.append('name',             form.name.trim());
-    fd.append('description',      form.description.trim());
-    fd.append('price',            form.price);
-    fd.append('unit',             form.unit);
-    fd.append('saleType',         form.saleType);
-    fd.append('minOrderQuantity', form.minOrderQuantity);
-    fd.append('stockQuantity',    form.stockQuantity);
-    fd.append('category',         form.category);
-    fd.append('region',           form.region);
+    fd.append('name',             data.name);
+    fd.append('description',      data.description);
+    fd.append('price',            data.price);
+    fd.append('unit',             data.unit);
+    fd.append('saleType',         data.saleType);
+    fd.append('minOrderQuantity', data.minOrderQuantity);
+    fd.append('stockQuantity',    data.stockQuantity);
+    fd.append('category',         data.category);
+    fd.append('region',           region);
     fd.append('tags',             JSON.stringify(tags));
-    fd.append('discount',         JSON.stringify({ percentage: Number(form.discountPct) || 0 }));
+    fd.append('discount',         JSON.stringify({ percentage: data.discountPercentage || 0 }));
+    fd.append('location',         JSON.stringify(location));
     mutation.mutate(fd);
-  };
+  });
 
   return (
     <Modal title="Məhsulu redaktə et" onClose={onClose} width="max-w-2xl">
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={onSubmit} noValidate>
         <div className="space-y-5 px-6 py-5">
           <div className="grid gap-4 sm:grid-cols-2">
-            <FormField label="Məhsul adı" required>
-              <input className="input-shell w-full" value={form.name} onChange={e => sf('name', e.target.value)} required />
+            <FormField label="Məhsul adı" required error={fe.name}>
+              <input
+                className={`input-shell w-full ${fe.name ? 'input-error' : ''}`}
+                {...register('name')}
+              />
             </FormField>
-            <FormField label="Qiymət (AZN)" required>
-              <input type="number" min="0" step="0.01" className="input-shell w-full" value={form.price} onChange={e => sf('price', e.target.value)} required />
+            <FormField label="Qiymət (AZN)" required error={fe.price}>
+              <input
+                type="number" min="0" step="0.01"
+                className={`input-shell w-full ${fe.price ? 'input-error' : ''}`}
+                {...register('price', { valueAsNumber: true })}
+              />
             </FormField>
           </div>
 
-          <FormField label="Təsvir" required>
-            <textarea className="input-shell w-full min-h-[80px] resize-y" value={form.description} onChange={e => sf('description', e.target.value)} required />
+          <FormField label="Təsvir" required error={fe.description}>
+            <textarea
+              className={`input-shell w-full min-h-[80px] resize-y ${fe.description ? 'input-error' : ''}`}
+              {...register('description')}
+            />
           </FormField>
 
           <div className="grid gap-4 sm:grid-cols-3">
-            <FormField label="Ölçü vahidi" required>
-              <select className="input-shell w-full" value={form.unit} onChange={e => sf('unit', e.target.value)}>
+            <FormField label="Ölçü vahidi" required error={fe.unit}>
+              <select className="input-shell w-full" {...register('unit')}>
                 {Object.entries(UNIT_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
               </select>
             </FormField>
-            <FormField label="Satış tipi" required>
-              <select className="input-shell w-full" value={form.saleType} onChange={e => sf('saleType', e.target.value)}>
+            <FormField label="Satış tipi" required error={fe.saleType}>
+              <select className="input-shell w-full" {...register('saleType')}>
                 <option value="retail">Pərakəndə</option>
                 <option value="wholesale">Topdan</option>
                 <option value="both">Hər ikisi</option>
               </select>
             </FormField>
-            <FormField label="Endirim (%)">
-              <input type="number" min="0" max="100" className="input-shell w-full" value={form.discountPct} onChange={e => sf('discountPct', e.target.value)} />
+            <FormField label="Endirim (%)" error={fe.discountPercentage}>
+              <input
+                type="number" min="0" max="100"
+                className="input-shell w-full"
+                {...register('discountPercentage', { valueAsNumber: true })}
+              />
             </FormField>
           </div>
 
+          <FormField label="Götürmə nöqtəsi (istəyə bağlı)" helper="Boş olduqda profil götürmə nöqtəniz / region istifadə olunur.">
+            <LocationPicker
+              value={location}
+              onChange={({ lat, lng }) => setLocation({ lat, lng })}
+              placeholder="Məhsulun göndərildiyi yeri xəritədə tap..."
+            />
+          </FormField>
+
           <div className="grid gap-4 sm:grid-cols-3">
-            <FormField label="Min. sifariş" required>
-              <input type="number" min="1" className="input-shell w-full" value={form.minOrderQuantity} onChange={e => sf('minOrderQuantity', e.target.value)} required />
+            <FormField label="Min. sifariş" required error={fe.minOrderQuantity}>
+              <Controller
+                name="minOrderQuantity"
+                control={control}
+                render={({ field }) => (
+                  <QuantityInput value={field.value} min={0.001} max={9999999} onChange={field.onChange} />
+                )}
+              />
             </FormField>
-            <FormField label="Stok miqdarı" required>
-              <input type="number" min="0" className="input-shell w-full" value={form.stockQuantity} onChange={e => sf('stockQuantity', e.target.value)} required />
+            <FormField label="Stok miqdarı" required error={fe.stockQuantity}>
+              <Controller
+                name="stockQuantity"
+                control={control}
+                render={({ field }) => (
+                  <QuantityInput value={field.value} min={0} max={9999999} onChange={field.onChange} />
+                )}
+              />
             </FormField>
-            <FormField label="Kateqoriya" required>
-              <select className="input-shell w-full" value={form.category} onChange={e => sf('category', e.target.value)} required>
+            <FormField label="Kateqoriya" required error={fe.category}>
+              <select
+                className={`input-shell w-full ${fe.category ? 'input-error' : ''}`}
+                {...register('category')}
+              >
                 <option value="">Seçin</option>
                 {categories.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
               </select>
@@ -657,7 +782,12 @@ function EditProductModal({ product, categories, regions, onClose, onSuccess }) 
           </div>
 
           <FormField label="Region" required>
-            <select className="input-shell w-full" value={form.region} onChange={e => sf('region', e.target.value)} required>
+            <select
+              className="input-shell w-full"
+              value={region}
+              onChange={e => setRegion(e.target.value)}
+              required
+            >
               <option value="">Seçin</option>
               {regions.map(r => <option key={r._id} value={r._id}>{r.name}</option>)}
             </select>
@@ -954,19 +1084,38 @@ function ProductsSection({ products, categories, regions, isLoading, stats }) {
 
 function AddProductForm({ categories, sellerRegion, onSuccess, onCancel }) {
   const queryClient = useQueryClient();
-  const [form, setForm] = useState(EMPTY_FORM);
   const [tags, setTags] = useState([]);
   const [images, setImages] = useState([]);
   const [videos, setVideos] = useState([]);
+  const [location, setLocation] = useState(null);
   const [msg, setMsg] = useState('');
   const [success, setSuccess] = useState(false);
+
+  const {
+    register,
+    handleSubmit,
+    control,
+    watch,
+    setValue,
+    reset,
+    formState: { errors: fe },
+  } = useForm({
+    resolver: zodResolver(productSchema),
+    defaultValues: {
+      name: '', description: '', price: 0, unit: 'kg',
+      saleType: 'retail', minOrderQuantity: 1,
+      stockQuantity: 1, category: '', discountPercentage: 0,
+    },
+  });
+
+  const saleType = watch('saleType');
 
   const mutation = useMutation({
     mutationFn: api.createSellerProduct,
     onSuccess: data => {
       setMsg(data?.message || 'Məhsul əlavə olundu. Admin təsdiqini gözləyir.');
       setSuccess(true);
-      setForm(EMPTY_FORM);
+      reset();
       setTags([]);
       setImages([]);
       setVideos([]);
@@ -981,35 +1130,37 @@ function AddProductForm({ categories, sellerRegion, onSuccess, onCancel }) {
     },
   });
 
-  const sf = (f, v) => setForm(p => ({ ...p, [f]: v }));
-
-  const handleSubmit = e => {
-    e.preventDefault();
+  const onSubmit = handleSubmit(data => {
     setMsg('');
     setSuccess(false);
     if (!sellerRegion?._id) {
       setMsg('Profilinizdə region yoxdur. Zəhmət olmasa profil bölməsindən region əlavə edin.');
       return;
     }
+    if (images.length === 0) {
+      setMsg('Ən azı bir məhsul şəkli əlavə edin.');
+      return;
+    }
     const fd = new FormData();
-    fd.append('name',             form.name.trim());
-    fd.append('description',      form.description.trim());
-    fd.append('price',            form.price);
-    fd.append('unit',             form.unit);
-    fd.append('saleType',         form.saleType);
-    fd.append('minOrderQuantity', form.minOrderQuantity);
-    fd.append('stockQuantity',    form.stockQuantity);
-    fd.append('category',         form.category);
+    fd.append('name',             data.name);
+    fd.append('description',      data.description);
+    fd.append('price',            data.price);
+    fd.append('unit',             data.unit);
+    fd.append('saleType',         data.saleType);
+    fd.append('minOrderQuantity', data.minOrderQuantity);
+    fd.append('stockQuantity',    data.stockQuantity);
+    fd.append('category',         data.category);
     fd.append('region',           sellerRegion._id);
     fd.append('tags',             JSON.stringify(tags));
-    fd.append('discount',         JSON.stringify({ percentage: Number(form.discountPercentage) || 0 }));
+    fd.append('discount',         JSON.stringify({ percentage: data.discountPercentage || 0 }));
+    if (location) fd.append('location', JSON.stringify(location));
     for (const img of images) fd.append('images', img);
     for (const vid of videos) fd.append('video', vid);
     mutation.mutate(fd);
-  };
+  });
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={onSubmit} className="space-y-4" noValidate>
       <div className="flex items-center justify-between">
         <div className="text-base font-semibold text-ink">Yeni məhsul əlavə et</div>
         {onCancel ? (
@@ -1030,31 +1181,44 @@ function AddProductForm({ categories, sellerRegion, onSuccess, onCancel }) {
       )}
 
       <Card title="1. Əsas məlumatlar">
-        <FormField label="Məhsul adı" required>
-          <input className="input-shell w-full" placeholder="Məhsul adını daxil edin" value={form.name} onChange={e => sf('name', e.target.value)} required />
+        <FormField label="Məhsul adı" required error={fe.name}>
+          <input
+            className={`input-shell w-full ${fe.name ? 'input-error' : ''}`}
+            placeholder="Məhsul adını daxil edin"
+            {...register('name')}
+          />
         </FormField>
-        <FormField label="Təsvir" required>
-          <textarea className="input-shell w-full min-h-[80px] resize-y" placeholder="Məhsul haqqında məlumat..." value={form.description} onChange={e => sf('description', e.target.value)} required />
+        <FormField label="Təsvir" required error={fe.description}>
+          <textarea
+            className={`input-shell w-full min-h-[80px] resize-y ${fe.description ? 'input-error' : ''}`}
+            placeholder="Məhsul haqqında məlumat..."
+            {...register('description')}
+          />
         </FormField>
       </Card>
 
       <Card title="2. Qiymət və satış">
         <div className="grid grid-cols-2 gap-4">
-          <FormField label="Qiymət (AZN)" required>
-            <input type="number" min="0" step="0.01" className="input-shell w-full" placeholder="0.00" value={form.price} onChange={e => sf('price', e.target.value)} required />
+          <FormField label="Qiymət (AZN)" required error={fe.price}>
+            <input
+              type="number" min="0" step="0.01"
+              className={`input-shell w-full ${fe.price ? 'input-error' : ''}`}
+              placeholder="0.00"
+              {...register('price', { valueAsNumber: true })}
+            />
           </FormField>
-          <FormField label="Ölçü vahidi" required>
-            <select className="input-shell w-full" value={form.unit} onChange={e => sf('unit', e.target.value)}>
+          <FormField label="Ölçü vahidi" required error={fe.unit}>
+            <select className="input-shell w-full" {...register('unit')}>
               {Object.entries(UNIT_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </select>
           </FormField>
         </div>
-        <FormField label="Satış tipi" required>
+        <FormField label="Satış tipi" required error={fe.saleType}>
           <div className="grid grid-cols-3 gap-2">
             {[{ value: 'retail', label: 'Pərakəndə' }, { value: 'wholesale', label: 'Topdan' }, { value: 'both', label: 'Hər ikisi' }].map(({ value, label }) => (
-              <button key={value} type="button" onClick={() => sf('saleType', value)}
+              <button key={value} type="button" onClick={() => setValue('saleType', value, { shouldValidate: true })}
                 className={`rounded-xl border py-2.5 text-xs font-medium transition ${
-                  form.saleType === value ? 'border-forest bg-forest/10 text-forest' : 'border-slate-200 text-slate-600 hover:border-forest/40'
+                  saleType === value ? 'border-forest bg-forest/10 text-forest' : 'border-slate-200 text-slate-600 hover:border-forest/40'
                 }`}
               >
                 {label}
@@ -1062,30 +1226,60 @@ function AddProductForm({ categories, sellerRegion, onSuccess, onCancel }) {
             ))}
           </div>
         </FormField>
-        <FormField label="Endirim faizi (%)">
-          <input type="number" min="0" max="100" className="input-shell w-full" placeholder="0" value={form.discountPercentage} onChange={e => sf('discountPercentage', e.target.value)} />
+        <FormField label="Endirim faizi (%)" error={fe.discountPercentage}>
+          <input
+            type="number" min="0" max="100"
+            className="input-shell w-full"
+            placeholder="0"
+            {...register('discountPercentage', { valueAsNumber: true })}
+          />
         </FormField>
       </Card>
 
       <Card title="3. Stok və minimum sifariş">
         <div className="grid grid-cols-2 gap-4">
-          <FormField label="Stok miqdarı" required>
-            <input type="number" min="0" className="input-shell w-full" placeholder="10" value={form.stockQuantity} onChange={e => sf('stockQuantity', e.target.value)} required />
+          <FormField label="Stok miqdarı" required error={fe.stockQuantity}>
+            <Controller
+              name="stockQuantity"
+              control={control}
+              render={({ field }) => (
+                <QuantityInput
+                  value={field.value}
+                  min={0}
+                  max={9999999}
+                  onChange={field.onChange}
+                />
+              )}
+            />
           </FormField>
-          <FormField label="Minimum sifariş" required>
-            <input type="number" min="1" className="input-shell w-full" placeholder="1" value={form.minOrderQuantity} onChange={e => sf('minOrderQuantity', e.target.value)} required />
+          <FormField label="Minimum sifariş" required error={fe.minOrderQuantity}>
+            <Controller
+              name="minOrderQuantity"
+              control={control}
+              render={({ field }) => (
+                <QuantityInput
+                  value={field.value}
+                  min={0.001}
+                  max={9999999}
+                  onChange={field.onChange}
+                />
+              )}
+            />
           </FormField>
         </div>
       </Card>
 
       <Card title="4. Kateqoriya və taglər">
-        <FormField label="Kateqoriya" required>
-          <select className="input-shell w-full" value={form.category} onChange={e => sf('category', e.target.value)} required>
+        <FormField label="Kateqoriya" required error={fe.category}>
+          <select
+            className={`input-shell w-full ${fe.category ? 'input-error' : ''}`}
+            {...register('category')}
+          >
             <option value="">Kateqoriya seçin</option>
             {categories.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
           </select>
         </FormField>
-        <FormField label="Taglər" helper="Axtarış və filtrləmə üçün açar sözlər: məsələn alma, təzə, üzvi">
+        <FormField label="Tag" helper="Axtarış və filtrləmə üçün açar sözlər: məsələn alma, təzə, üzvi">
           <TagInput tags={tags} setTags={setTags} />
         </FormField>
       </Card>
@@ -1111,6 +1305,16 @@ function AddProductForm({ categories, sellerRegion, onSuccess, onCancel }) {
           </label>
         </FormField>
       </Card>
+
+      <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm space-y-3">
+        <div className="text-sm font-semibold text-ink">Götürmə nöqtəsi (istəyə bağlı)</div>
+        <p className="text-xs text-slate-400">Boş buraxsanız, profil götürmə nöqtəniz və ya region istifadə olunur. Yalnız bu məhsul başqa yerdən göndərilirsə doldurun.</p>
+        <LocationPicker
+          value={location}
+          onChange={({ lat, lng }) => setLocation({ lat, lng })}
+          placeholder="Məhsulun göndərildiyi yeri xəritədə tap..."
+        />
+      </div>
 
       {msg ? (
         <div className={`rounded-xl border px-4 py-3 text-sm ${success ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-red-200 bg-red-50 text-red-700'}`}>
@@ -1237,6 +1441,7 @@ function OrderDetailModal({ orderId, onClose }) {
 
 function OrdersSection({ orders, isLoading }) {
   const updateStatus = useUpdateOrderStatus();
+  const openChat = useOpenConversation();
   const [detailOrderId, setDetailOrderId] = useState(null);
 
   if (isLoading) {
@@ -1321,6 +1526,22 @@ function OrdersSection({ orders, isLoading }) {
                           ) : null}
                         </>
                       ) : null}
+                      <button
+                        type="button"
+                        onClick={() => openChat({ type: 'buyer_seller', orderId: order._id })}
+                        className="flex w-full items-center gap-1.5 rounded-xl bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-200"
+                      >
+                        <MessageCircle className="h-3 w-3 shrink-0" />Alıcıya yaz
+                      </button>
+                      {order.courier ? (
+                        <button
+                          type="button"
+                          onClick={() => openChat({ type: 'seller_courier', orderId: order._id })}
+                          className="flex w-full items-center gap-1.5 rounded-xl bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-200"
+                        >
+                          <MessageCircle className="h-3 w-3 shrink-0" />Kuryerə yaz
+                        </button>
+                      ) : null}
                     </div>
                   </td>
                 </tr>
@@ -1358,6 +1579,9 @@ function ProfileSection({ user, stats, meData, regions }) {
     businessName:        sellerInfo.businessName ?? '',
     businessDescription: sellerInfo.businessDescription ?? '',
     saleType:            sellerInfo.saleType ?? 'both',
+    pickupLocation:      (sellerInfo.pickupLocation && Number.isFinite(sellerInfo.pickupLocation.lat))
+      ? { lat: sellerInfo.pickupLocation.lat, lng: sellerInfo.pickupLocation.lng }
+      : null,
   });
   const [msg, setMsg]     = useState('');
   const [msgOk, setMsgOk] = useState(false);
@@ -1382,6 +1606,7 @@ function ProfileSection({ user, stats, meData, regions }) {
         businessName:        business.businessName,
         businessDescription: business.businessDescription,
         saleType:            business.saleType,
+        pickupLocation:      business.pickupLocation || null,
       });
       // Fetch fresh user data and update both React Query cache and Redux/localStorage
       const freshData = await api.me();
@@ -1436,7 +1661,10 @@ function ProfileSection({ user, stats, meData, regions }) {
               </FormField>
             </div>
             <FormField label="Telefon">
-              <input className="input-shell w-full" value={personal.phone} onChange={e => sp('phone', e.target.value)} />
+              <PhoneInput
+                value={personal.phone}
+                onChange={normalized => sp('phone', normalized)}
+              />
             </FormField>
             <FormField label="Region">
               <select className="input-shell w-full" value={personal.region} onChange={e => sp('region', e.target.value)}>
@@ -1460,6 +1688,13 @@ function ProfileSection({ user, stats, meData, regions }) {
                 <option value="wholesale">Topdan</option>
                 <option value="both">Hər ikisi</option>
               </select>
+            </FormField>
+            <FormField label="Götürmə nöqtəsi (çatdırılma məsafəsi bu nöqtədən hesablanır)" helper="Məhsulların göndərildiyi dəqiq yer">
+              <LocationPicker
+                value={business.pickupLocation}
+                onChange={({ lat, lng }) => sb('pickupLocation', { lat, lng })}
+                placeholder="Götürmə ünvanını xəritədə tap..."
+              />
             </FormField>
           </div>
 
@@ -1616,7 +1851,7 @@ function SettingsSection() {
       <div className="grid gap-4 sm:grid-cols-2">
         {[
           { title: 'Bildiriş parametrləri', desc: 'Email və tətbiq bildirişlərini idarə edin' },
-          { title: 'Məxfilik parametrləri', desc: 'Profil görünürlüğünü tənzimləyin' },
+          { title: 'Məxfilik parametrləri', desc: 'Profil görünüşünü tənzimləyin' },
           { title: 'Dil və görünüş',        desc: 'İnterfeys dilini seçin' },
           { title: 'API inteqrasiyası',     desc: 'Xarici sistemlərlə əlaqə' },
         ].map(item => (
@@ -1702,7 +1937,7 @@ export default function SellerDashboard() {
   const liveUser = meQuery.data?.user ?? user;
 
   return (
-    <div className="fixed inset-0 z-50 flex overflow-hidden bg-slate-50">
+    <div className="fixed inset-0 z-50 flex  bg-slate-50">
       <Sidebar section={section} onSection={setSection} />
 
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
@@ -1743,6 +1978,8 @@ export default function SellerDashboard() {
               {section === 'orders' && (
                 <OrdersSection orders={sellerOrders} isLoading={sellerOrdersQuery.isLoading} />
               )}
+
+              {section === 'reviews' && <SellerReviewsSection />}
 
               {section === 'profile' && (
                 <ProfileSection user={user} stats={stats} meData={meData} regions={regions} />

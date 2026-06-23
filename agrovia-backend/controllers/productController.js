@@ -1,5 +1,24 @@
 const Product = require('../models/Product');
 const { deleteFromCloudinary } = require('../middleware/upload');
+const { isValidCoords } = require('../utils/computeOrderDelivery');
+
+// Safely parse a JSON field arriving as a multipart/form-data string.
+// Returns { ok: true, value } on success (passing through objects and using
+// `fallback` for empty/missing values), or { ok: false } on malformed JSON —
+// so a bad field becomes a clean 400 instead of an unhandled 500.
+const parseJsonField = (raw, fallback) => {
+  if (raw === undefined || raw === null || raw === '') {
+    return { ok: true, value: fallback };
+  }
+  if (typeof raw === 'object') {
+    return { ok: true, value: raw };
+  }
+  try {
+    return { ok: true, value: JSON.parse(raw) };
+  } catch (e) {
+    return { ok: false };
+  }
+};
 
 // Bütün məhsulları gətir (filter ilə)
 exports.getProducts = async (req, res) => {
@@ -113,12 +132,41 @@ exports.createProduct = async (req, res) => {
       region,
       attributes,
       tags,
-      discount
+      discount,
+      location
     } = req.body;
 
     // req.files is an object from .fields(): { images: [...], video: [...] }
     const imageFiles = req.files?.images || [];
     const videoFile = req.files?.video?.[0] || null;
+
+    // Image is required — a product cannot be created with zero images.
+    if (imageFiles.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validasiya xətası',
+        errors: ['Ən azı bir məhsul şəkli tələb olunur']
+      });
+    }
+
+    // Parse optional JSON fields safely so malformed input is a clean 400.
+    const parsedAttributes = parseJsonField(attributes, []);
+    const parsedTags = parseJsonField(tags, []);
+    const parsedDiscount = parseJsonField(discount, { percentage: 0 });
+    const parsedLocation = parseJsonField(location, null);
+
+    const jsonErrors = [];
+    if (!parsedAttributes.ok) jsonErrors.push('Xüsusiyyətlər (attributes) düzgün formatda deyil');
+    if (!parsedTags.ok) jsonErrors.push('Teqlər (tags) düzgün formatda deyil');
+    if (!parsedDiscount.ok) jsonErrors.push('Endirim (discount) düzgün formatda deyil');
+    if (!parsedLocation.ok) jsonErrors.push('Götürmə nöqtəsi (location) düzgün formatda deyil');
+    if (jsonErrors.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validasiya xətası',
+        errors: jsonErrors
+      });
+    }
 
     const images = imageFiles.map((file, index) => ({
       public_id: file.filename,
@@ -145,9 +193,14 @@ exports.createProduct = async (req, res) => {
       region,
       images,
       videos,
-      attributes: attributes ? JSON.parse(attributes) : [],
-      tags: tags ? JSON.parse(tags) : [],
-      discount: discount ? JSON.parse(discount) : { percentage: 0 },
+      attributes: parsedAttributes.value,
+      tags: parsedTags.value,
+      discount: parsedDiscount.value,
+      // Optional exact origin override — only stored when valid (else delivery falls
+      // back to seller pickup / region at order time).
+      ...(isValidCoords(parsedLocation.value)
+        ? { location: { lat: Number(parsedLocation.value.lat), lng: Number(parsedLocation.value.lng) } }
+        : {}),
       status: 'pending'
     });
 
@@ -193,10 +246,16 @@ exports.updateProduct = async (req, res) => {
     if (req.user.role === 'admin') allowedUpdates.push('status');
 
     const updates = {};
+    const jsonErrors = [];
     allowedUpdates.forEach(field => {
       if (req.body[field] !== undefined) {
         if (['attributes', 'tags', 'discount'].includes(field)) {
-          updates[field] = JSON.parse(req.body[field]);
+          const parsed = parseJsonField(req.body[field], undefined);
+          if (!parsed.ok) {
+            jsonErrors.push(`${field} düzgün formatda deyil`);
+          } else if (parsed.value !== undefined) {
+            updates[field] = parsed.value;
+          }
         } else if (['price', 'minOrderQuantity', 'stockQuantity'].includes(field)) {
           updates[field] = Number(req.body[field]);
         } else {
@@ -204,6 +263,26 @@ exports.updateProduct = async (req, res) => {
         }
       }
     });
+
+    // Optional exact origin override (validated separately from the JSON fields above).
+    if (req.body.location !== undefined) {
+      const parsed = parseJsonField(req.body.location, null);
+      if (!parsed.ok) {
+        jsonErrors.push('Götürmə nöqtəsi (location) düzgün formatda deyil');
+      } else if (isValidCoords(parsed.value)) {
+        updates.location = { lat: Number(parsed.value.lat), lng: Number(parsed.value.lng) };
+      } else if (parsed.value === null) {
+        updates.location = undefined; // explicit clear
+      }
+    }
+
+    if (jsonErrors.length > 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validasiya xətası',
+        errors: jsonErrors
+      });
+    }
 
     // req.files is an object from .fields(): { images: [...], video: [...] }
     const newImageFiles = req.files?.images || [];

@@ -43,6 +43,22 @@ exports.getDashboard = asyncHandler(async (req, res) => {
     ])
   ]);
 
+  // Financial / payout ledger totals
+  const round2 = (n) => Math.round((n || 0) * 100) / 100;
+  const financeAgg = await Order.aggregate([
+    {
+      $group: {
+        _id: null,
+        platformFeeTotal: { $sum: { $cond: [{ $eq: ['$payment.status', 'paid'] }, '$payout.platformFee', 0] } },
+        sellerPayable: { $sum: { $cond: [{ $eq: ['$payout.sellerPayoutStatus', 'available'] }, '$payout.sellerEarning', 0] } },
+        courierPayable: { $sum: { $cond: [{ $eq: ['$payout.courierPayoutStatus', 'available'] }, '$payout.courierEarning', 0] } },
+        sellerPaid: { $sum: { $cond: [{ $eq: ['$payout.sellerPayoutStatus', 'paid'] }, '$payout.sellerEarning', 0] } },
+        courierPaid: { $sum: { $cond: [{ $eq: ['$payout.courierPayoutStatus', 'paid'] }, '$payout.courierEarning', 0] } }
+      }
+    }
+  ]);
+  const f = financeAgg[0] || {};
+
   res.status(200).json({
     success: true,
     stats: {
@@ -64,8 +80,52 @@ exports.getDashboard = asyncHandler(async (req, res) => {
         pending: pendingOrders,
         delivered: deliveredOrders
       },
-      revenue: revenueResult[0]?.total || 0
+      revenue: revenueResult[0]?.total || 0,
+      finance: {
+        buyerPayments: revenueResult[0]?.total || 0,
+        platformFeeTotal: round2(f.platformFeeTotal),
+        sellerPayable: round2(f.sellerPayable),
+        courierPayable: round2(f.courierPayable),
+        sellerPaid: round2(f.sellerPaid),
+        courierPaid: round2(f.courierPaid)
+      }
     }
+  });
+});
+
+// @desc    Mark a seller/courier payout as paid (bookkeeping only — no real transfer)
+// @route   PUT /api/admin/orders/:id/payout
+// @access  Private (Admin)
+exports.markPayout = asyncHandler(async (req, res) => {
+  const { target } = req.body;
+
+  if (!['seller', 'courier'].includes(target)) {
+    throw new ApiError(400, "target yalnız 'seller' və ya 'courier' ola bilər");
+  }
+
+  const order = await Order.findById(req.params.id);
+  if (!order) {
+    throw new ApiError(404, 'Sifariş tapılmadı');
+  }
+  if (!order.payout) {
+    throw new ApiError(400, 'Bu sifarişdə ödəniş məlumatı yoxdur');
+  }
+
+  const statusKey = target === 'seller' ? 'sellerPayoutStatus' : 'courierPayoutStatus';
+  const paidAtKey = target === 'seller' ? 'sellerPaidAt' : 'courierPaidAt';
+
+  if (order.payout[statusKey] !== 'available') {
+    throw new ApiError(400, 'Ödəniş yalnız "available" statusunda ödənilmiş kimi qeyd edilə bilər');
+  }
+
+  order.payout[statusKey] = 'paid';
+  order.payout[paidAtKey] = new Date();
+  await order.save();
+
+  res.status(200).json({
+    success: true,
+    message: `${target === 'seller' ? 'Satıcı' : 'Kuryer'} ödənişi ödənilmiş kimi qeyd edildi`,
+    payout: order.payout
   });
 });
 
@@ -219,15 +279,34 @@ exports.getPendingProducts = asyncHandler(async (req, res) => {
 exports.approveProduct = asyncHandler(async (req, res) => {
   const { status } = req.body;
 
-  const product = await Product.findByIdAndUpdate(
-    req.params.id,
-    { status },
-    { new: true }
-  );
+  // Admin may only approve (active) or reject (rejected). Anything else — including
+  // a missing/misnamed field — is a clean 400 instead of a silent no-op.
+  const ALLOWED_STATUSES = ['active', 'rejected'];
+  if (!ALLOWED_STATUSES.includes(status)) {
+    throw new ApiError(400, "Status yalnız 'active' və ya 'rejected' ola bilər");
+  }
+
+  const product = await Product.findById(req.params.id);
 
   if (!product) {
     throw new ApiError(404, 'Məhsul tapılmadı');
   }
+
+  // save() runs schema validators (enum) — the status is guaranteed to persist correctly.
+  product.status = status;
+  await product.save();
+
+  // Notify the seller about the decision (createNotification never throws).
+  await createNotification({
+    recipient: product.seller,
+    sender: req.user._id,
+    type: 'product',
+    title: status === 'active' ? 'Məhsulunuz təsdiqləndi' : 'Məhsulunuz rədd edildi',
+    message: status === 'active'
+      ? `"${product.name}" adlı məhsulunuz təsdiqləndi və artıq satışdadır.`
+      : `"${product.name}" adlı məhsulunuz admin tərəfindən rədd edildi.`,
+    relatedProduct: product._id
+  });
 
   res.status(200).json({
     success: true,

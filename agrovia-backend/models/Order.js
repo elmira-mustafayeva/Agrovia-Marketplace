@@ -73,6 +73,13 @@ const orderSchema = new mongoose.Schema(
       default: 0,
       min: 0
     },
+    // Distance-based delivery snapshot (computed at order creation, never recalculated).
+    // deliveryFee above mirrors delivery.price for backward compatibility.
+    delivery: {
+      distanceKm: { type: Number, default: 0 },
+      durationMinutes: { type: Number, default: 0 },
+      price: { type: Number, default: 0 }
+    },
     totalAmount: {
       type: Number,
       required: true,
@@ -86,7 +93,12 @@ const orderSchema = new mongoose.Schema(
         ref: "Region"
       },
       city: { type: String, trim: true },
-      street: { type: String, trim: true },
+      street: {
+        type: String,
+        trim: true,
+        minlength: [3, 'Ünvan ən az 3 simvol olmalıdır'],
+        maxlength: [200, 'Ünvan 200 simvoldan çox ola bilməz']
+      },
 
       coordinates: {
         lat: Number,
@@ -113,6 +125,43 @@ const orderSchema = new mongoose.Schema(
       paymentIntentId: { type: String },
       transactionId: String,
       paidAt: Date
+    },
+
+    // Stock idempotency marker — true once order items have decremented product stock.
+    // Stock is deducted at payment success (card) / delivery (cash), never at order create.
+    stockDeducted: {
+      type: Boolean,
+      default: false
+    },
+
+    // Financial ledger — snapshotted at order creation, never recalculated afterwards.
+    // Internal accounting only (Stripe still pays the platform account; no Stripe Connect).
+    payout: {
+      productSubtotal: { type: Number, default: 0 },
+      deliveryFee: { type: Number, default: 0 },
+      platformCommissionRate: { type: Number, default: 0 },
+      platformFee: { type: Number, default: 0 },
+      sellerEarning: { type: Number, default: 0 },
+      courierEarning: { type: Number, default: 0 },
+      sellerPayoutStatus: {
+        type: String,
+        enum: ['pending', 'available', 'paid'],
+        default: 'pending'
+      },
+      courierPayoutStatus: {
+        type: String,
+        enum: ['pending', 'available', 'paid'],
+        default: 'pending'
+      },
+      sellerPaidAt: Date,
+      courierPaidAt: Date
+    },
+
+    // Order-level courier (delivery) rating — separate from product Review.
+    deliveryReview: {
+      rating: { type: Number, min: 1, max: 5 },
+      comment: { type: String, maxlength: 500 },
+      createdAt: Date
     },
 
     // Order Status
@@ -178,7 +227,7 @@ const orderSchema = new mongoose.Schema(
 // # AUTO LOGIC
 
 // Order number generator
-orderSchema.pre("save", function (next) {
+orderSchema.pre("save", async function () {
   if (!this.orderNumber) {
     const prefix = "AGR";
     const timestamp = Date.now().toString(36).toUpperCase();
@@ -188,19 +237,16 @@ orderSchema.pre("save", function (next) {
 
     this.orderNumber = `${prefix}-${timestamp}-${random}`;
   }
-  next();
 });
 
 // Auto price calculation
-orderSchema.pre("save", function (next) {
+orderSchema.pre("save", async function () {
   this.subtotal = this.items.reduce(
     (acc, item) => acc + item.totalPrice,
     0
   );
 
   this.totalAmount = this.subtotal + this.deliveryFee;
-
-  next();
 });
 
 // # INDEXES

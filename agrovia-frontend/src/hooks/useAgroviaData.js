@@ -71,3 +71,17 @@ export const useReviews = (productId) => useQuery({
   enabled: Boolean(productId),
   select: (data) => data
 });
+
+export const useMyReviews = (enabled = true) => useQuery({
+  queryKey: ['my-reviews'],
+  queryFn: api.getMyReviews,
+  enabled,
+  select: (data) => data.reviews || []
+});
+
+export const useSellerReviews = (enabled = true) => useQuery({
+  queryKey: ['seller-reviews'],
+  queryFn: api.sellerReviews,
+  enabled,
+  select: (data) => data.reviews || []
+});
